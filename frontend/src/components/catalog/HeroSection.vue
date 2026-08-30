@@ -20,7 +20,7 @@
     </div>
     <div
       class="hero-art"
-      aria-label="Organic Emperor Daily Moisture collection">
+      aria-label="OrganicEmperor.com Daily Moisture collection">
       <span class="hero-art__halo" aria-hidden="true"></span>
       <div class="hero-bottle">
         <img src="/organic-emperor-emblem.png" alt="" />

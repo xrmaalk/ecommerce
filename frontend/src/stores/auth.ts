@@ -20,11 +20,19 @@ export const useAuthStore = defineStore("auth", () => {
   const statusMessage = ref("")
   let initialization: Promise<void> | null = null
 
-  const isAuthenticated = computed(() => state.value === "authenticated" && Boolean(user.value))
-  const displayName = computed(() => user.value?.first_name || user.value?.email || "Account")
+  const isAuthenticated = computed(
+    () => state.value === "authenticated" && Boolean(user.value),
+  )
+  const displayName = computed(
+    () => user.value?.first_name || user.value?.email || "Account",
+  )
 
   async function initialize(force = false) {
-    if (!force && (state.value === "authenticated" || state.value === "anonymous")) return
+    if (
+      !force &&
+      (state.value === "authenticated" || state.value === "anonymous")
+    )
+      return
     if (initialization) return initialization
 
     state.value = "loading"
@@ -35,7 +43,10 @@ export const useAuthStore = defineStore("auth", () => {
         user.value = response.data
         state.value = "authenticated"
       } catch (requestError) {
-        if (axios.isAxiosError(requestError) && [401, 403].includes(requestError.response?.status ?? 0)) {
+        if (
+          axios.isAxiosError(requestError) &&
+          [401, 403].includes(requestError.response?.status ?? 0)
+        ) {
           user.value = null
           state.value = "anonymous"
         } else {
@@ -49,7 +60,10 @@ export const useAuthStore = defineStore("auth", () => {
     return initialization
   }
 
-  async function runAuthRequest(request: () => Promise<Customer>, successMessage: string) {
+  async function runAuthRequest(
+    request: () => Promise<Customer>,
+    successMessage: string,
+  ) {
     isSubmitting.value = true
     error.value = ""
     statusMessage.value = ""
@@ -77,7 +91,7 @@ export const useAuthStore = defineStore("auth", () => {
   async function register(payload: RegistrationPayload) {
     await runAuthRequest(
       async () => (await api.post<Customer>("/auth/register/", payload)).data,
-      "Your Organic Emperor account is ready.",
+      "Your OrganicEmperor.com account is ready.",
     )
   }
 
@@ -135,7 +149,19 @@ export const useAuthStore = defineStore("auth", () => {
   }
 
   return {
-    user, state, isSubmitting, error, statusMessage, isAuthenticated, displayName,
-    initialize, signIn, register, signOut, updateProfile, changePassword, clearFeedback,
+    user,
+    state,
+    isSubmitting,
+    error,
+    statusMessage,
+    isAuthenticated,
+    displayName,
+    initialize,
+    signIn,
+    register,
+    signOut,
+    updateProfile,
+    changePassword,
+    clearFeedback,
   }
 })

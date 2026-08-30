@@ -1,5 +1,6 @@
 import json
 import tempfile
+from io import BytesIO
 from datetime import timedelta
 from decimal import Decimal
 from pathlib import Path
@@ -19,12 +20,91 @@ from catalog.models import Category, Product
 from .models import Cart, CheckoutSession, Order, PaymentWebhookEvent, ShippingRate
 from .paypal import PayPalError
 from .services import CommerceError, complete_checkout, create_checkout_session, create_paypal_order
+from .tax import AvaTaxAdapter, TaxUnavailable
 
 User = get_user_model()
 ZERO_TAX = override_settings(
     COMMERCE_TAX_ADAPTER="commerce.tax.ZeroTaxAdapter",
     COMMERCE_ALLOW_ZERO_TAX=True,
 )
+AVATAX = override_settings(
+    AVATAX_ACCOUNT_ID="sandbox-account",
+    AVATAX_LICENSE_KEY="sandbox-license",
+    AVATAX_COMPANY_CODE="ORGANICEMPEROR",
+    AVATAX_ENVIRONMENT="sandbox",
+    AVATAX_ORIGIN_LINE1="100 Ship From Street",
+    AVATAX_ORIGIN_CITY="Calgary",
+    AVATAX_ORIGIN_REGION="AB",
+    AVATAX_ORIGIN_POSTAL_CODE="T2P 1J9",
+    AVATAX_ORIGIN_COUNTRY="CA",
+)
+
+
+class FakeHttpResponse:
+    def __init__(self, payload):
+        self.body = BytesIO(json.dumps(payload).encode())
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+    def read(self):
+        return self.body.read()
+
+
+class AvaTaxAdapterTests(TestCase):
+    def address(self):
+        return {
+            "address_line_1": "10 Main Street", "address_line_2": "Unit 2",
+            "city": "Calgary", "region": "AB", "postal_code": "T2P 1J9",
+            "country_code": "CA",
+        }
+
+    def items(self):
+        return [{
+            "sku": "OE-001", "name": "Daily Moisture", "quantity": 2,
+            "line_total_cad": "40.00",
+        }]
+
+    @AVATAX
+    @patch("commerce.tax.urlopen")
+    def test_avatax_quote_uses_cad_lines_addresses_and_freight(self, mocked_urlopen):
+        mocked_urlopen.return_value = FakeHttpResponse({
+            "id": 42, "code": "OE-QUOTE-42", "totalTax": 3.00,
+        })
+
+        quote = AvaTaxAdapter().calculate(
+            subtotal=Decimal("40.00"), shipping=Decimal("20.00"),
+            address=self.address(), items=self.items(),
+        )
+
+        request = mocked_urlopen.call_args.args[0]
+        payload = json.loads(request.data.decode())
+        self.assertEqual(request.full_url, "https://sandbox-rest.avatax.com/api/v2/transactions/create")
+        self.assertEqual(payload["currencyCode"], "CAD")
+        self.assertEqual(payload["addresses"]["shipFrom"]["region"], "AB")
+        self.assertEqual(payload["addresses"]["shipTo"]["line2"], "Unit 2")
+        self.assertEqual(payload["lines"][0]["amount"], "40.00")
+        self.assertEqual(payload["lines"][1]["taxCode"], "FR020100")
+        self.assertFalse(payload["commit"])
+        self.assertEqual(quote.amount, Decimal("3.0"))
+        self.assertEqual(quote.provider, "avalara-avatax")
+        self.assertEqual(quote.reference, "OE-QUOTE-42")
+
+    @override_settings(
+        AVATAX_ACCOUNT_ID="", AVATAX_LICENSE_KEY="", AVATAX_COMPANY_CODE="",
+        AVATAX_ENVIRONMENT="sandbox", AVATAX_ORIGIN_LINE1="",
+        AVATAX_ORIGIN_CITY="", AVATAX_ORIGIN_REGION="",
+        AVATAX_ORIGIN_POSTAL_CODE="", AVATAX_ORIGIN_COUNTRY="CA",
+    )
+    def test_avatax_fails_closed_when_configuration_is_incomplete(self):
+        with self.assertRaises(TaxUnavailable):
+            AvaTaxAdapter().calculate(
+                subtotal=Decimal("40.00"), shipping=Decimal("20.00"),
+                address=self.address(), items=self.items(),
+            )
 
 
 def make_product(sku="OE-001", inventory=10, price="20.00"):

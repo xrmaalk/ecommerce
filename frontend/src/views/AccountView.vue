@@ -110,7 +110,7 @@ async function submitSignOut() {
   <section class="page-shell account-page">
     <header class="account-heading">
       <div>
-        <p class="eyebrow">Organic Emperor</p>
+        <p class="eyebrow">OrganicEmperor.com</p>
         <h1>
           {{
             isAuthenticated ? `Welcome, ${user?.first_name}` : "Your account"

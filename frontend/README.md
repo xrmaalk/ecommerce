@@ -1,6 +1,6 @@
-# Organic Emperor Storefront
+# OrganicEmperor.com Storefront
 
-A modular Vue 3 + TypeScript storefront connected to the Organic Emperor Django catalogue API.
+A modular Vue 3 + TypeScript storefront connected to the OrganicEmperor.com Django catalogue API.
 
 ## Development
 

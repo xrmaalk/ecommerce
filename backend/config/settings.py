@@ -56,14 +56,14 @@ if not DATABASE_URL and not DEBUG:
     raise RuntimeError("DATABASE_URL is required in production")
 
 DATABASES = {
-    "default": dj_database_url.config(  # type: ignore
+    "default": dj_database_url.config(
         default=DATABASE_URL or f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
         conn_max_age=60,
     )
 }
-if DATABASES["default"]["ENGINE"] == "django.db.backends.mysql":  # type: ignore
+if DATABASES["default"]["ENGINE"] == "django.db.backends.mysql":
     DATABASES["default"].setdefault("OPTIONS", {})
-    DATABASES["default"]["OPTIONS"]["init_command"] = (  # type: ignore
+    DATABASES["default"]["OPTIONS"]["init_command"] = (
         "SET sql_mode='STRICT_TRANS_TABLES'"
     )
 AUTH_PASSWORD_VALIDATORS = [
@@ -121,3 +121,12 @@ COMMERCE_TAX_ADAPTER = os.environ.get(
 )
 COMMERCE_ALLOW_ZERO_TAX = os.environ.get(
     "COMMERCE_ALLOW_ZERO_TAX", "False").lower() == "true"
+AVATAX_ACCOUNT_ID = os.environ.get("AVATAX_ACCOUNT_ID", "")
+AVATAX_LICENSE_KEY = os.environ.get("AVATAX_LICENSE_KEY", "")
+AVATAX_COMPANY_CODE = os.environ.get("AVATAX_COMPANY_CODE", "")
+AVATAX_ENVIRONMENT = os.environ.get("AVATAX_ENVIRONMENT", "sandbox").lower()
+AVATAX_ORIGIN_LINE1 = os.environ.get("AVATAX_ORIGIN_LINE1", "")
+AVATAX_ORIGIN_CITY = os.environ.get("AVATAX_ORIGIN_CITY", "")
+AVATAX_ORIGIN_REGION = os.environ.get("AVATAX_ORIGIN_REGION", "")
+AVATAX_ORIGIN_POSTAL_CODE = os.environ.get("AVATAX_ORIGIN_POSTAL_CODE", "")
+AVATAX_ORIGIN_COUNTRY = os.environ.get("AVATAX_ORIGIN_COUNTRY", "CA").upper()
