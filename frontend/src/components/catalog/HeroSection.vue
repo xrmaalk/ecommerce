@@ -2,10 +2,10 @@
   <section class="hero-section" aria-labelledby="hero-title">
     <div class="hero-copy">
       <p class="eyebrow">Daily Routine; Refined.</p>
-      <h1 id="hero-title">Forever Selfcare</h1>
+      <h1 id="hero-title">Forever Skincare</h1>
       <p class="hero-lede">
         Quality body care, must have shave essentials and comforting organic
-        teas.
+        teas and soaps.
       </p>
       <RouterLink
         class="button button--primary"

@@ -17,20 +17,28 @@ function addProduct() {
 <template>
   <article class="product-card">
     <div class="product-card__visual">
-      <img v-if="product.images[0]" :src="product.images[0].image"
-        :alt="product.images[0].alt_text || product.name" loading="lazy" decoding="async" />
+      <img
+        v-if="product.images[0]"
+        :src="product.images[0].image"
+        :alt="product.images[0].alt_text || product.name"
+        loading="lazy"
+        decoding="async" />
       <div v-else class="product-card__fallback" aria-hidden="true">
-        <img src="/organic-emperor-emblem.png" alt="" /><b>ORGANIC</b><strong>EMPEROR</strong>
+        <img src="/organic-emperor-emblem.png" alt="" /><b>ORGANIC</b
+        ><strong>EMPEROR</strong>
       </div>
-      <span v-if="product.is_featured" class="featured-flame" title="Featured product">
-        <span aria-hidden="true">🔥</span>
-        <span class="sr-only">Featured product</span>
-      </span>
     </div>
     <div class="product-card__content">
       <small>{{ product.category.name }}</small>
       <h3>{{ product.name }}</h3>
       <p>{{ product.short_description }}</p>
+      <span
+        v-if="product.is_featured"
+        class="featured-flame"
+        title="Featured product">
+        <span aria-hidden="true">🔥</span>
+        <span class="sr-only">Featured product</span>
+      </span>
       <footer>
         <strong>{{ price }} <span>CAD</span></strong>
         <button type="button" :disabled="!product.in_stock" @click="addProduct">
