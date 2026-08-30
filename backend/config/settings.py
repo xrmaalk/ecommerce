@@ -34,7 +34,7 @@ LOGGING = {
 INSTALLED_APPS = [
     "django.contrib.admin", "django.contrib.auth", "django.contrib.contenttypes",
     "django.contrib.sessions", "django.contrib.messages", "django.contrib.staticfiles",
-    "corsheaders", "rest_framework", "accounts", "catalog",
+    "corsheaders", "rest_framework", "accounts", "catalog", "commerce",
 ]
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware", "whitenoise.middleware.WhiteNoiseMiddleware",
@@ -94,4 +94,17 @@ CSRF_COOKIE_SAMESITE = "Lax"
 REST_FRAMEWORK = {"DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.AllowAny"],
                   "DEFAULT_AUTHENTICATION_CLASSES": ["rest_framework.authentication.SessionAuthentication"],
                   "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination", "PAGE_SIZE": 24,
-                  "DEFAULT_THROTTLE_RATES": {"authentication": "20/minute"}}
+                  "DEFAULT_THROTTLE_RATES": {
+                      "authentication": "20/minute",
+                      "checkout": "30/minute",
+                      "payment": "10/minute",
+                  }}
+
+PAYPAL_CLIENT_ID = os.environ.get("PAYPAL_CLIENT_ID", "")
+PAYPAL_CLIENT_SECRET = os.environ.get("PAYPAL_CLIENT_SECRET", "")
+PAYPAL_WEBHOOK_ID = os.environ.get("PAYPAL_WEBHOOK_ID", "")
+PAYPAL_MODE = os.environ.get("PAYPAL_MODE", "sandbox").lower()
+COMMERCE_TAX_ADAPTER = os.environ.get(
+    "COMMERCE_TAX_ADAPTER", "commerce.tax.UnavailableTaxAdapter"
+)
+COMMERCE_ALLOW_ZERO_TAX = os.environ.get("COMMERCE_ALLOW_ZERO_TAX", "False").lower() == "true"

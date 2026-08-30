@@ -18,6 +18,7 @@ def api_root(request):
             "health": "/health/",
             "catalog": "/api/v1/",
             "authentication": "/api/v1/auth/",
+            "commerce": "/api/v1/commerce/",
             "administration": "/admin/",
         }
     )
@@ -31,6 +32,7 @@ urlpatterns = [
     path("health/", lambda request: JsonResponse({"status": "ok"})),
     path("admin/", admin.site.urls),
     path("api/v1/auth/", include("accounts.urls")),
+    path("api/v1/commerce/", include("commerce.urls")),
     path("api/v1/", include("catalog.urls")),
 ]
 
