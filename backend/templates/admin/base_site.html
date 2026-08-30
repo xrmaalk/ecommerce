@@ -1,0 +1,48 @@
+{% extends "admin/base.html" %}
+{% load i18n static %}
+
+{% block title %}{{ title }} | Organic Emperor Admin{% endblock %}
+
+{% block extrastyle %}
+  {{ block.super }}
+  <link rel="stylesheet" href="{% static 'admin/css/organic-emperor-admin.css' %}">
+{% endblock %}
+
+{% block branding %}
+  <div class="oe-brand">
+    <a class="oe-brand__link" href="{% url 'admin:index' %}" aria-label="Organic Emperor admin dashboard">
+      <img
+        class="oe-brand__mark"
+        src="{% static 'admin/img/organic-emperor-emblem.png' %}"
+        alt=""
+        width="48"
+        height="48"
+      >
+      <span class="oe-brand__copy">
+        <span class="oe-brand__name">Organic Emperor</span>
+        <span class="oe-brand__descriptor">Commerce Administration</span>
+      </span>
+    </a>
+  </div>
+{% endblock %}
+
+{% block nav-global %}
+  <nav class="oe-global-nav" aria-label="Store shortcuts">
+    {% if user.is_active and user.is_staff %}
+      <a href="{% url 'admin:catalog_product_changelist' %}">Products</a>
+      <a href="{% url 'admin:catalog_category_changelist' %}">Categories</a>
+    {% endif %}
+    <a href="https://organicemperor.com/" target="_blank" rel="noopener noreferrer">
+      View storefront
+      <span aria-hidden="true">↗</span>
+    </a>
+  </nav>
+{% endblock %}
+
+{% block footer %}
+  <footer id="footer" class="oe-footer">
+    <span>Organic Emperor Administration</span>
+    <span aria-hidden="true">•</span>
+    <a href="https://organicemperor.com/" target="_blank" rel="noopener noreferrer">organicemperor.com</a>
+  </footer>
+{% endblock %}

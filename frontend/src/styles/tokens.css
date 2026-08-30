@@ -1,0 +1,24 @@
+:root {
+  --green-950: #09291f;
+  --green-900: #103d2d;
+  --green-800: #18523c;
+  --green-600: #397057;
+  --gold-600: #b98013;
+  --gold-500: #dba52d;
+  --gold-300: #efd477;
+  --cream-50: #fdfcf7;
+  --cream-100: #f7f4e9;
+  --cream-200: #eee8d5;
+  --ink: #153329;
+  --muted: #66756d;
+  --danger: #9a3528;
+  --border: rgba(19, 61, 45, 0.15);
+  --serif: Georgia, "Times New Roman", serif;
+  --sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --shadow-sm: 0 0.35rem 1rem rgba(9, 41, 31, 0.08);
+  --shadow-lg: 0 1.8rem 4rem rgba(9, 41, 31, 0.17);
+  --radius-sm: 0.55rem;
+  --radius-md: 1rem;
+  --radius-lg: 1.5rem;
+  --content: 90rem;
+}
