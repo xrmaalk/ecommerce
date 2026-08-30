@@ -2,12 +2,14 @@
 import { computed } from "vue"
 import { useRoute, useRouter } from "vue-router"
 import { useDebouncedFn } from "../../composables/useDebouncedFn"
+import { useAuthStore } from "../../stores/auth"
 import { useBagStore } from "../../stores/bag"
 import { useCatalogStore } from "../../stores/catalog"
 import BrandLogo from "../branding/BrandLogo.vue"
 import ThemeToggle from "./ThemeToggle.vue"
 
 const bag = useBagStore()
+const auth = useAuthStore()
 const catalog = useCatalogStore()
 const route = useRoute()
 const router = useRouter()
@@ -32,7 +34,10 @@ const debouncedSearch = useDebouncedFn(() => void submitSearch())
     </form>
     <nav class="site-nav" aria-label="Primary navigation">
       <RouterLink :to="{ name: 'home', hash: '#catalog' }">Shop</RouterLink>
-      <RouterLink :to="{ name: 'account' }">Account</RouterLink>
+      <RouterLink class="account-link" :to="{ name: auth.isAuthenticated ? 'account-settings' : 'account' }"
+        :aria-label="auth.isAuthenticated ? `Account for ${auth.displayName}` : 'Sign in or create an account'">
+        {{ auth.isAuthenticated ? auth.displayName : "Account" }}
+      </RouterLink>
       <ThemeToggle />
       <button type="button" class="bag-button" aria-haspopup="dialog" :aria-expanded="bag.isOpen" @click="bag.open">
         Bag <span v-if="bag.itemCount" class="bag-count">{{ bag.itemCount }}</span>

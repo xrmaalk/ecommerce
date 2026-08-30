@@ -1,4 +1,14 @@
-# Version 1.2.0 — Featured flame marker
+# Version 1.3.0 — Customer account authentication
+
+- Added secure Django session authentication with explicit CSRF protection.
+- Added customer registration, sign in, sign out, session restoration, profile editing, and password changes.
+- Added rate limiting, password validation, normalized email login, and generic credential errors.
+- Replaced the account placeholder with responsive sign-in, registration, and signed-in settings views.
+- Added a protected account-settings route and authenticated header state.
+- Included the staging storefront in the default CORS and CSRF origin configuration.
+- Removed stale generated JavaScript copies so TypeScript remains the authoritative frontend source.
+
+## Version 1.2.0 — Featured flame marker
 
 - Replaced the obstructed featured text badge with a compact flame marker.
 - Moved featured status to the upper-right corner with stable image layering.
@@ -25,4 +35,4 @@
 - Added Apache history fallback and baseline security headers.
 - Excluded dependencies and build caches from the delivery package.
 
-Checkout and account authentication are intentionally presented as pending until the corresponding secure Django endpoints are available.
+Checkout remains pending until the server-side cart, order, shipping, tax, and payment contracts are available.

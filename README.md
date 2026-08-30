@@ -39,7 +39,24 @@ npm run dev
 - `GET /api/v1/products/`
 - `GET /api/v1/products/?search=balm&category=shave-care`
 - `GET /api/v1/products/<slug>/`
+- `GET /api/v1/auth/csrf/`
+- `POST /api/v1/auth/register/`
+- `POST /api/v1/auth/sign-in/`
+- `POST /api/v1/auth/sign-out/`
+- `GET|PATCH /api/v1/auth/me/`
+- `POST /api/v1/auth/password/`
+
+## Customer authentication
+
+Customer accounts use Django's server-side sessions and CSRF protection. The
+frontend sends requests with credentials enabled and obtains a CSRF token before
+every unsafe account request. Passwords and authentication tokens are never
+written to browser storage.
+
+Production must set `CORS_ALLOWED_ORIGINS` and `CSRF_TRUSTED_ORIGINS` to the
+exact deployed frontend origins. HTTPS is required for the secure session and
+CSRF cookies when `DJANGO_DEBUG=False`.
 
 ## Next milestone
 
-Add customer authentication, server-side carts, orders, checkout sessions, payment webhooks and a WooCommerce CSV importer. Confirm the payment gateway and shipping/tax rules before implementing checkout.
+Add server-side carts, orders, checkout sessions, payment webhooks and a WooCommerce CSV importer. Confirm the payment gateway and shipping/tax rules before implementing checkout.

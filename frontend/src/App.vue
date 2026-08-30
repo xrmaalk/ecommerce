@@ -5,10 +5,15 @@ import BagDrawer from "./components/bag/BagDrawer.vue"
 import AppFooter from "./components/layout/AppFooter.vue"
 import AppHeader from "./components/layout/AppHeader.vue"
 import AnnouncementBar from "./components/layout/AnnouncementBar.vue"
+import { useAuthStore } from "./stores/auth"
 import { useBagStore } from "./stores/bag"
 
 const bag = useBagStore()
-onMounted(() => bag.restore())
+const auth = useAuthStore()
+onMounted(() => {
+  bag.restore()
+  void auth.initialize()
+})
 </script>
 
 <template>
