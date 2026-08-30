@@ -56,14 +56,14 @@ if not DATABASE_URL and not DEBUG:
     raise RuntimeError("DATABASE_URL is required in production")
 
 DATABASES = {
-    "default": dj_database_url.config(
+    "default": dj_database_url.config(  # type: ignore
         default=DATABASE_URL or f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
         conn_max_age=60,
     )
 }
-if DATABASES["default"]["ENGINE"] == "django.db.backends.mysql":
+if DATABASES["default"]["ENGINE"] == "django.db.backends.mysql":  # type: ignore
     DATABASES["default"].setdefault("OPTIONS", {})
-    DATABASES["default"]["OPTIONS"]["init_command"] = (
+    DATABASES["default"]["OPTIONS"]["init_command"] = (  # type: ignore
         "SET sql_mode='STRICT_TRANS_TABLES'"
     )
 AUTH_PASSWORD_VALIDATORS = [

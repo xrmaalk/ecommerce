@@ -1,4 +1,10 @@
-# Version 1.4.0 — Commerce and PayPal checkout foundation
+# Version 1.4.1 — Initial shipping configuration
+
+- Activated flat-rate shipping at $15 CAD for Canada and $25 CAD for the United States.
+- Kept checkout and PayPal capture CAD-denominated to avoid exchange-rate ambiguity.
+- Preserved the production tax safety gate while allowing the existing zero-tax adapter only when explicitly enabled for sandbox acceptance testing.
+
+## Version 1.4.0 — Commerce and PayPal checkout foundation
 
 - Added authenticated server-side carts with safe local-bag merging and server-authoritative prices.
 - Added admin-configured flat-rate shipping for Canada and the United States.

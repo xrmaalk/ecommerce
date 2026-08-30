@@ -1,6 +1,6 @@
-# Organic Emperor Webstore
+# OrganicEmperor.com Webstore
 
-Phase-one foundation for replacing WooCommerce with Django REST Framework, PostgreSQL, Vue 3, Pinia, TypeScript and CSS.
+Phase-one foundation for replacing WooCommerce with Django REST Framework, MYSQL, Vue 3, Pinia, TypeScript and CSS.
 
 ## Local backend
 
@@ -70,7 +70,9 @@ CSRF cookies when `DJANGO_DEBUG=False`.
 ## Commerce configuration
 
 Checkout uses PayPal and CAD-denominated flat-rate shipping to Canada and the
-United States. Configure and activate both shipping rates in Django Admin.
+United States. Migration `commerce.0005_configure_initial_shipping_rates`
+activates the agreed initial rates: $15 CAD to Canada and $25 CAD to the United
+States. Both rates remain editable in Django Admin.
 Production checkout remains blocked by `UnavailableTaxAdapter` until a real tax
 provider is connected.
 
@@ -90,5 +92,5 @@ without downloading untrusted remote URLs.
 
 ## Next milestone
 
-Connect the production tax provider, configure real shipping prices and PayPal
-webhook credentials, then run an end-to-end PayPal Sandbox acceptance test.
+Configure PayPal Sandbox credentials and the sandbox-only zero-tax adapter, then run an end-to-end acceptance test.
+Production tax remains blocked until the provider milestone is completed.

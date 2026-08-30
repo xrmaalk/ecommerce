@@ -5,15 +5,15 @@ from django.http import JsonResponse
 from django.urls import include, path, re_path
 from django.views.static import serve as serve_media
 
-admin.site.site_header = "Organic Emperor Administration"
-admin.site.site_title = "Organic Emperor Admin"
+admin.site.site_header = "OrganicEmperor.com Administration"
+admin.site.site_title = "OrganicEmperor.com Admin"
 admin.site.index_title = "Store Operations"
 
 
 def api_root(request):
     return JsonResponse(
         {
-            "service": "Organic Emperor Commerce API",
+            "service": "OrganicEmperor.com Commerce API",
             "status": "online",
             "health": "/health/",
             "catalog": "/api/v1/",
@@ -26,7 +26,7 @@ def api_root(request):
 
 urlpatterns = [
     path("", lambda request: JsonResponse({
-        "service": "Organic Emperor Commerce API",
+        "service": "OrganicEmperor.com Commerce API",
         "status": "online",
     })),
     path("health/", lambda request: JsonResponse({"status": "ok"})),
