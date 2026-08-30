@@ -177,6 +177,7 @@ async function submitSignOut() {
           <p>{{ user?.email }}</p>
           <small>Member since {{ memberSince }}</small>
           <RouterLink class="button button--primary button--wide" :to="{ name: 'home', hash: '#catalog' }">Continue shopping</RouterLink>
+          <RouterLink class="button account-summary__orders button--wide" :to="{ name: 'orders' }">Order history</RouterLink>
           <button class="text-button" type="button" :disabled="isSubmitting" @click="submitSignOut">Sign out</button>
         </aside>
 

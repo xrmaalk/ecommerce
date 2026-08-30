@@ -45,6 +45,16 @@ npm run dev
 - `POST /api/v1/auth/sign-out/`
 - `GET|PATCH /api/v1/auth/me/`
 - `POST /api/v1/auth/password/`
+- `GET /api/v1/commerce/cart/`
+- `PUT /api/v1/commerce/cart/items/`
+- `POST /api/v1/commerce/cart/merge/`
+- `GET /api/v1/commerce/shipping-rates/`
+- `POST /api/v1/commerce/checkout/quote/`
+- `POST /api/v1/commerce/checkout/paypal/create/`
+- `POST /api/v1/commerce/checkout/paypal/capture/`
+- `GET /api/v1/commerce/orders/`
+- `GET /api/v1/commerce/orders/<number>/`
+- `POST /api/v1/commerce/webhooks/paypal/`
 
 ## Customer authentication
 
@@ -57,6 +67,28 @@ Production must set `CORS_ALLOWED_ORIGINS` and `CSRF_TRUSTED_ORIGINS` to the
 exact deployed frontend origins. HTTPS is required for the secure session and
 CSRF cookies when `DJANGO_DEBUG=False`.
 
+## Commerce configuration
+
+Checkout uses PayPal and CAD-denominated flat-rate shipping to Canada and the
+United States. Configure and activate both shipping rates in Django Admin.
+Production checkout remains blocked by `UnavailableTaxAdapter` until a real tax
+provider is connected.
+
+PayPal requires `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `PAYPAL_WEBHOOK_ID`,
+and `PAYPAL_MODE`. Schedule `python manage.py release_expired_checkout_reservations`
+every five minutes so abandoned PayPal checkouts return reserved inventory.
+
+Import a WooCommerce export with:
+
+```bash
+python manage.py import_woocommerce_csv products.csv --dry-run
+python manage.py import_woocommerce_csv products.csv
+```
+
+Use `--image-base-dir /path/to/images` to import matching local image files
+without downloading untrusted remote URLs.
+
 ## Next milestone
 
-Add server-side carts, orders, checkout sessions, payment webhooks and a WooCommerce CSV importer. Confirm the payment gateway and shipping/tax rules before implementing checkout.
+Connect the production tax provider, configure real shipping prices and PayPal
+webhook credentials, then run an end-to-end PayPal Sandbox acceptance test.

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted } from "vue"
+import { onMounted, watch } from "vue"
 import { RouterView } from "vue-router"
 import BagDrawer from "./components/bag/BagDrawer.vue"
 import AppFooter from "./components/layout/AppFooter.vue"
@@ -10,9 +10,14 @@ import { useBagStore } from "./stores/bag"
 
 const bag = useBagStore()
 const auth = useAuthStore()
+watch(() => auth.isAuthenticated, (authenticated) => {
+  if (authenticated) void bag.mergeWithServer()
+})
 onMounted(() => {
   bag.restore()
-  void auth.initialize()
+  void auth.initialize().then(() => {
+    if (auth.isAuthenticated) void bag.mergeWithServer()
+  })
 })
 </script>
 

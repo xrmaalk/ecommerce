@@ -10,6 +10,7 @@ const bag = useBagStore()
 <template>
   <section class="page-shell bag-page" aria-labelledby="bag-page-title">
     <header class="page-heading"><p class="eyebrow">Your selections</p><h1 id="bag-page-title">Shopping bag</h1><p v-if="!bag.isEmpty">{{ bag.itemCount }} {{ bag.itemCount === 1 ? 'item' : 'items' }} saved in your bag.</p></header>
+    <div v-if="bag.syncError" class="form-alert form-alert--error" role="alert">{{ bag.syncError }}</div>
     <EmptyBag v-if="bag.isEmpty" />
     <div v-else class="bag-layout">
       <div class="bag-list">

@@ -33,10 +33,13 @@
 [data-theme="dark"] .product-card,
 [data-theme="dark"] .notice-card,
 [data-theme="dark"] .account-card,
+[data-theme="dark"] .order-card,
 [data-theme="dark"] .bag-summary { color: var(--ink); background: #0f2a20; }
 [data-theme="dark"] .form-field label,
 [data-theme="dark"] .security-note strong { color: var(--gold-300); }
 [data-theme="dark"] .form-field input { color: var(--ink); border-color: rgba(221, 235, 226, 0.2); background: #0a2119; }
+[data-theme="dark"] .checkout-form select { color: var(--ink); border-color: rgba(221, 235, 226, 0.2); background: #0a2119; }
+[data-theme="dark"] .shipping-rate, [data-theme="dark"] .order-status { color: var(--ink); background: #193a2d; }
 [data-theme="dark"] .form-alert--error { color: #ffc1b8; border-color: rgba(255, 149, 135, 0.3); background: #421d18; }
 [data-theme="dark"] .form-alert--success { color: #c7ead4; border-color: rgba(132, 204, 157, 0.25); background: #153827; }
 [data-theme="dark"] .account-consent a { color: var(--gold-300); }
@@ -58,7 +61,7 @@
 [data-theme="dark"] .text-link { color: var(--gold-300); }
 
 @media (prefers-reduced-motion: no-preference) {
-  body, .site-header, .hero-section, .product-card, .bag-drawer, .bag-summary, .notice-card, .account-card {
+  body, .site-header, .hero-section, .product-card, .bag-drawer, .bag-summary, .notice-card, .account-card, .order-card {
     transition: color 220ms ease, background-color 220ms ease, border-color 220ms ease;
   }
 }

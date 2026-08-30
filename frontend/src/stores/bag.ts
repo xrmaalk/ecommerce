@@ -1,7 +1,10 @@
 import { computed, ref, watch } from "vue"
 import { defineStore } from "pinia"
+import { api, getApiErrorMessage } from "../api/client"
+import { useAuthStore } from "./auth"
 import type { BagItem } from "../types/bag"
 import type { Product } from "../types/catalog"
+import type { ServerCart } from "../types/commerce"
 
 const STORAGE_KEY = "organic-emperor-bag-v2"
 const MAX_QUANTITY = 99
@@ -20,6 +23,9 @@ export const useBagStore = defineStore("bag", () => {
   const isOpen = ref(false)
   const hasRestored = ref(false)
   const statusMessage = ref("")
+  const syncError = ref("")
+  const isSyncing = ref(false)
+  const pendingSyncs = new Map<number, number>()
   const itemCount = computed(() => items.value.reduce((total, item) => total + item.quantity, 0))
   const subtotal = computed(() => items.value.reduce((total, item) => total + item.price * item.quantity, 0))
   const isEmpty = computed(() => items.value.length === 0)
@@ -57,6 +63,8 @@ export const useBagStore = defineStore("bag", () => {
       quantity: 1, inventoryQuantity: product.inventory_quantity,
     })
     statusMessage.value = `${product.name} added to your bag.`
+    const item = items.value.find((entry) => entry.id === product.id)
+    if (item) scheduleServerSync(item.id, item.quantity)
   }
 
   function setQuantity(id: number, quantity: number) {
@@ -66,6 +74,7 @@ export const useBagStore = defineStore("bag", () => {
     const stockLimit = item.inventoryQuantity > 0 ? item.inventoryQuantity : MAX_QUANTITY
     item.quantity = Math.min(Math.floor(quantity), stockLimit, MAX_QUANTITY)
     statusMessage.value = `${item.name} quantity updated to ${item.quantity}.`
+    scheduleServerSync(item.id, item.quantity)
   }
 
   function increment(id: number) {
@@ -80,11 +89,65 @@ export const useBagStore = defineStore("bag", () => {
     const item = items.value.find((entry) => entry.id === id)
     items.value = items.value.filter((entry) => entry.id !== id)
     if (item) statusMessage.value = `${item.name} removed from your bag.`
+    scheduleServerSync(id, 0)
+  }
+
+  function applyServerCart(cart: ServerCart) {
+    items.value = cart.items.map(({ product, quantity }) => ({
+      id: product.id,
+      name: product.name,
+      slug: product.slug,
+      price: Math.max(0, Number(product.price_cad) || 0),
+      image: product.images[0]?.image ?? "",
+      imageAlt: product.images[0]?.alt_text || product.name,
+      quantity,
+      inventoryQuantity: product.inventory_quantity,
+    }))
+  }
+
+  function scheduleServerSync(productId: number, quantity: number) {
+    if (!useAuthStore().isAuthenticated) return
+    const pending = pendingSyncs.get(productId)
+    if (pending) window.clearTimeout(pending)
+    pendingSyncs.set(productId, window.setTimeout(async () => {
+      pendingSyncs.delete(productId)
+      try {
+        const response = await api.put<ServerCart>("/commerce/cart/items/", {
+          product_id: productId,
+          quantity,
+        })
+        applyServerCart(response.data)
+        syncError.value = ""
+      } catch (error) {
+        syncError.value = getApiErrorMessage(error)
+      }
+    }, 350))
+  }
+
+  async function mergeWithServer() {
+    if (!useAuthStore().isAuthenticated || isSyncing.value) return
+    isSyncing.value = true
+    syncError.value = ""
+    try {
+      const response = await api.post<ServerCart>("/commerce/cart/merge/", {
+        items: items.value.map((item) => ({ product_id: item.id, quantity: item.quantity })),
+      })
+      applyServerCart(response.data)
+    } catch (error) {
+      syncError.value = getApiErrorMessage(error)
+    } finally {
+      isSyncing.value = false
+    }
+  }
+
+  function clearAfterOrder() {
+    items.value = []
+    statusMessage.value = "Order placed successfully. Your bag is now empty."
   }
 
   return {
-    items, isOpen, statusMessage, itemCount, subtotal, isEmpty,
-    restore, add, setQuantity, increment, decrement, remove,
+    items, isOpen, statusMessage, syncError, isSyncing, itemCount, subtotal, isEmpty,
+    restore, add, setQuantity, increment, decrement, remove, mergeWithServer, clearAfterOrder,
     open: () => { isOpen.value = true }, close: () => { isOpen.value = false },
   }
 })

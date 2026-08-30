@@ -1,4 +1,15 @@
-# Version 1.3.0 — Customer account authentication
+# Version 1.4.0 — Commerce and PayPal checkout foundation
+
+- Added authenticated server-side carts with safe local-bag merging and server-authoritative prices.
+- Added admin-configured flat-rate shipping for Canada and the United States.
+- Added a provider-neutral tax adapter that blocks production checkout until a provider is configured.
+- Added expiring checkout quotes and inventory reservation/release handling.
+- Added PayPal Orders v2 creation, capture, amount validation, and verified idempotent webhooks.
+- Added immutable customer orders, order items, protected order history, and confirmation views.
+- Added a dry-run, repeat-safe WooCommerce CSV importer with optional local image imports.
+- Added responsive checkout, PayPal button, order history, and dark-mode styling.
+
+## Version 1.3.0 — Customer account authentication
 
 - Added secure Django session authentication with explicit CSRF protection.
 - Added customer registration, sign in, sign out, session restoration, profile editing, and password changes.
@@ -35,4 +46,4 @@
 - Added Apache history fallback and baseline security headers.
 - Excluded dependencies and build caches from the delivery package.
 
-Checkout remains pending until the server-side cart, order, shipping, tax, and payment contracts are available.
+Live checkout remains gated until real shipping amounts, PayPal credentials, and an automated tax provider are configured.
