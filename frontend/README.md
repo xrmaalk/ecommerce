@@ -30,3 +30,5 @@ Upload the contents of `dist/` to the frontend document root. The included `.hta
 - `src/types/` — API and bag TypeScript contracts
 
 The shopping bag is persisted locally, validates restored data, respects inventory limits, and supports accessible increment, decrement, and removal controls. Checkout and authenticated account functions remain intentionally disabled until their secure Django endpoints are connected.
+
+The colour theme follows the visitor's operating-system preference on first load. The header toggle switches between light and dark modes and saves the selection locally.

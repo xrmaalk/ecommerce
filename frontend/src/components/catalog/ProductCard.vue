@@ -22,7 +22,10 @@ function addProduct() {
       <div v-else class="product-card__fallback" aria-hidden="true">
         <img src="/organic-emperor-emblem.png" alt="" /><b>ORGANIC</b><strong>EMPEROR</strong>
       </div>
-      <span v-if="product.is_featured" class="product-badge">Featured</span>
+      <span v-if="product.is_featured" class="featured-flame" title="Featured product">
+        <span aria-hidden="true">🔥</span>
+        <span class="sr-only">Featured product</span>
+      </span>
     </div>
     <div class="product-card__content">
       <small>{{ product.category.name }}</small>

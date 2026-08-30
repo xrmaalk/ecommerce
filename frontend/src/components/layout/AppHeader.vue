@@ -5,6 +5,7 @@ import { useDebouncedFn } from "../../composables/useDebouncedFn"
 import { useBagStore } from "../../stores/bag"
 import { useCatalogStore } from "../../stores/catalog"
 import BrandLogo from "../branding/BrandLogo.vue"
+import ThemeToggle from "./ThemeToggle.vue"
 
 const bag = useBagStore()
 const catalog = useCatalogStore()
@@ -32,6 +33,7 @@ const debouncedSearch = useDebouncedFn(() => void submitSearch())
     <nav class="site-nav" aria-label="Primary navigation">
       <RouterLink :to="{ name: 'home', hash: '#catalog' }">Shop</RouterLink>
       <RouterLink :to="{ name: 'account' }">Account</RouterLink>
+      <ThemeToggle />
       <button type="button" class="bag-button" aria-haspopup="dialog" :aria-expanded="bag.isOpen" @click="bag.open">
         Bag <span v-if="bag.itemCount" class="bag-count">{{ bag.itemCount }}</span>
       </button>

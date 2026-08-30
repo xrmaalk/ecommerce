@@ -1,10 +1,10 @@
 <template>
   <section class="hero-section" aria-labelledby="hero-title">
     <div class="hero-copy">
-      <p class="eyebrow">Daily routines, refined</p>
-      <h1 id="hero-title">Forever selfcare</h1>
+      <p class="eyebrow">Daily Routine; Refined.</p>
+      <h1 id="hero-title">Forever Selfcare</h1>
       <p class="hero-lede">
-        Purposeful body care, thoughtful shave essentials and comforting organic
+        Quality body care, must have shave essentials and comforting organic
         teas.
       </p>
       <RouterLink
@@ -13,9 +13,9 @@
         >Shop essentials <span aria-hidden="true">→</span></RouterLink
       >
       <ul class="hero-promises" aria-label="Shopping benefits">
-        <li>Curated quality</li>
-        <li>Canadian shop</li>
-        <li>Thoughtful service</li>
+        <li>Curated Quality</li>
+        <li>Globally Sourced Ingredience</li>
+        <li>Worldclass Service</li>
       </ul>
     </div>
     <div
@@ -24,8 +24,8 @@
       <span class="hero-art__halo" aria-hidden="true"></span>
       <div class="hero-bottle">
         <img src="/organic-emperor-emblem.png" alt="" />
-        <b>BODIGLO</b><strong>DAILY<br />MOISTURE</strong
-        ><small>Thoughtful care, naturally.</small>
+        <b>BODIGLO</b><strong>DAILY<br />MOISTURIZER</strong
+        ><small>Get theGlow. </small>
       </div>
     </div>
   </section>

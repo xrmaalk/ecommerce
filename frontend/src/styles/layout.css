@@ -14,6 +14,9 @@
 .site-search button { padding: 0.6rem 1.35rem; color: var(--green-950); background: var(--gold-500); font-weight: 800; cursor: pointer; }
 .site-nav { display: flex; align-items: center; justify-content: flex-end; gap: 1.25rem; font-size: 0.84rem; font-weight: 700; }
 .site-nav a:hover { color: var(--gold-600); }
+.theme-toggle { display: grid; place-items: center; width: 2.4rem; height: 2.4rem; padding: 0; color: var(--green-900); border: 1px solid var(--border); border-radius: 50%; background: var(--cream-100); cursor: pointer; transition: color 180ms ease, background 180ms ease, transform 180ms ease; }
+.theme-toggle:hover { color: var(--gold-600); background: var(--cream-200); transform: rotate(8deg); }
+.theme-toggle svg { width: 1.15rem; height: 1.15rem; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
 .bag-button { position: relative; padding: 0.6rem 0.8rem; color: white; background: var(--green-900); border-radius: var(--radius-sm); font-weight: 800; cursor: pointer; }
 .bag-count { position: absolute; top: -0.55rem; right: -0.5rem; display: grid; place-items: center; min-width: 1.35rem; height: 1.35rem; padding: 0 0.25rem; color: var(--green-950); background: var(--gold-300); border: 2px solid white; border-radius: 99rem; font-size: 0.66rem; }
 .site-footer { display: grid; grid-template-columns: 1fr auto auto; align-items: end; gap: clamp(2rem, 6vw, 6rem); padding: 3rem max(1rem, calc((100vw - var(--content)) / 2)); color: #d8e1db; background: var(--green-950); }
