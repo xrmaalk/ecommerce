@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from dotenv import load_dotenv
 
 try:
     import dj_database_url
@@ -7,6 +8,7 @@ except ImportError:  # pragma: no cover - optional dependency for production DB 
     dj_database_url = None
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+load_dotenv(BASE_DIR / ".env", override=False)
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "unsafe-development-key")
 DEBUG = os.environ.get("DJANGO_DEBUG", "False").lower() == "true"
 ALLOWED_HOSTS = [h.strip() for h in os.environ.get("DJANGO_ALLOWED_HOSTS",
@@ -47,8 +49,18 @@ ROOT_URLCONF = "config.urls"
 TEMPLATES = [{"BACKEND": "django.template.backends.django.DjangoTemplates", "DIRS": [BASE_DIR / "templates"], "APP_DIRS": True, "OPTIONS": {"context_processors": [
     "django.template.context_processors.request", "django.contrib.auth.context_processors.auth", "django.contrib.messages.context_processors.messages"]}}]
 WSGI_APPLICATION = "config.wsgi.application"
-DATABASES = {"default": dj_database_url.config(
-    default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}", conn_max_age=60)}
+
+DATABASE_URL = os.environ.get("DATABASE_URL")
+
+if not DATABASE_URL and not DEBUG:
+    raise RuntimeError("DATABASE_URL is required in production")
+
+DATABASES = {
+    "default": dj_database_url.config(
+        default=DATABASE_URL or f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
+        conn_max_age=60,
+    )
+}
 if DATABASES["default"]["ENGINE"] == "django.db.backends.mysql":
     DATABASES["default"].setdefault("OPTIONS", {})
     DATABASES["default"]["OPTIONS"]["init_command"] = (
@@ -98,7 +110,7 @@ REST_FRAMEWORK = {"DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.All
                       "authentication": "20/minute",
                       "checkout": "30/minute",
                       "payment": "10/minute",
-                  }}
+}}
 
 PAYPAL_CLIENT_ID = os.environ.get("PAYPAL_CLIENT_ID", "")
 PAYPAL_CLIENT_SECRET = os.environ.get("PAYPAL_CLIENT_SECRET", "")
@@ -107,4 +119,5 @@ PAYPAL_MODE = os.environ.get("PAYPAL_MODE", "sandbox").lower()
 COMMERCE_TAX_ADAPTER = os.environ.get(
     "COMMERCE_TAX_ADAPTER", "commerce.tax.UnavailableTaxAdapter"
 )
-COMMERCE_ALLOW_ZERO_TAX = os.environ.get("COMMERCE_ALLOW_ZERO_TAX", "False").lower() == "true"
+COMMERCE_ALLOW_ZERO_TAX = os.environ.get(
+    "COMMERCE_ALLOW_ZERO_TAX", "False").lower() == "true"
