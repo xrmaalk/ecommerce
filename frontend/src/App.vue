@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, watch } from "vue"
 import { RouterView } from "vue-router"
+import AdSenseBlock from "./components/adsense/AdSenseBlock.vue"
 import BagDrawer from "./components/bag/BagDrawer.vue"
 import AppFooter from "./components/layout/AppFooter.vue"
 import AppHeader from "./components/layout/AppHeader.vue"
@@ -10,9 +11,12 @@ import { useBagStore } from "./stores/bag"
 
 const bag = useBagStore()
 const auth = useAuthStore()
-watch(() => auth.isAuthenticated, (authenticated) => {
-  if (authenticated) void bag.mergeWithServer()
-})
+watch(
+  () => auth.isAuthenticated,
+  (authenticated) => {
+    if (authenticated) void bag.mergeWithServer()
+  },
+)
 onMounted(() => {
   bag.restore()
   void auth.initialize().then(() => {
@@ -26,9 +30,15 @@ onMounted(() => {
     <a class="skip-link" href="#main-content">Skip to content</a>
     <AnnouncementBar />
     <AppHeader />
+
     <main id="main-content"><RouterView /></main>
+    <AdSenseBlock />
+
     <AppFooter />
+
     <BagDrawer />
-    <p class="sr-only" aria-live="polite" aria-atomic="true">{{ bag.statusMessage }}</p>
+    <p class="sr-only" aria-live="polite" aria-atomic="true">
+      {{ bag.statusMessage }}
+    </p>
   </div>
 </template>
