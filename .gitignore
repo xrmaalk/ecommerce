@@ -14,3 +14,4 @@ dist-archives/
 *.zip
 *.log
 .env.*
+deployment/*
