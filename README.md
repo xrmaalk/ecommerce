@@ -30,7 +30,17 @@ npm run dev
 - `organicemperor.com`: built Vue storefront (`frontend/dist`)
 - `api.organicemperor.com`: Django application and `/api/v1/` endpoints
 - `admin.organicemperor.com`: reverse proxy to the same Django application `/admin/`
-- `organicarchives.organicemperor.com`: future Organic Archives Vue application
+- `organicarchives.organicemperor.com`: Organic Archives Vue application (`frontend/dist-archives`)
+
+## Organic Archives
+
+The editorial archive provides a numbered feed, category filters, search, and
+article pages with images and videos. Editors publish articles, news releases,
+and updates through Django Admin, including drafts and scheduled publication.
+
+Run `npm run dev:archives` or `npm run build:archives` from `frontend` for the
+separate archive application. See [publishing, local preview, and deployment
+instructions](deployment/ORGANIC_ARCHIVES.md).
 
 ## Available API routes
 
@@ -39,6 +49,8 @@ npm run dev
 - `GET /api/v1/products/`
 - `GET /api/v1/products/?search=balm&category=shave-care`
 - `GET /api/v1/products/<slug>/`
+- `GET /api/v1/archives/posts/`
+- `GET /api/v1/archives/posts/<slug>/`
 - `GET /api/v1/auth/csrf/`
 - `POST /api/v1/auth/register/`
 - `POST /api/v1/auth/sign-in/`

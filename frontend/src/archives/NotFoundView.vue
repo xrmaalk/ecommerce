@@ -1,0 +1,1 @@
+<template><section class="feed-state"><p class="eyebrow">404 / NOT IN THE ARCHIVES</p><h1>This page couldn’t be found.</h1><RouterLink class="text-link" to="/">Return to the feed →</RouterLink></section></template>

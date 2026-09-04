@@ -33,6 +33,7 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/v1/auth/", include("accounts.urls")),
     path("api/v1/commerce/", include("commerce.urls")),
+    path("api/v1/archives/", include("archives.urls")),
     path("api/v1/", include("catalog.urls")),
 ]
 
