@@ -13,7 +13,7 @@ import BrandLogo from "../branding/BrandLogo.vue"
         href="https://organicarchives.organicemperor.com"
         target="_blank"
         rel="noopener noreferrer"
-        >Organic Archives</a
+        >OrganicArchives</a
       >
       <RouterLink to="/privacy">Privacy</RouterLink>
       <RouterLink to="/returns">Returns</RouterLink>

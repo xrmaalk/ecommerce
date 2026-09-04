@@ -56,7 +56,7 @@ class Post(models.Model):
     kind = models.CharField(max_length=12, choices=Kind.choices, default=Kind.ARTICLE)
     topic = models.CharField(max_length=60, blank=True, help_text="Optional topic, e.g. Ingredients or Behind the scenes.")
     excerpt = models.TextField(max_length=500, help_text="A short introduction for the feed and search results.")
-    author_name = models.CharField(max_length=120, default="Organic Emperor")
+    author_name = models.CharField(max_length=120, default="OrganicEmperor")
     cover_image = models.ImageField(upload_to="archives/covers/%Y/%m/", blank=True)
     cover_alt = models.CharField(max_length=250, blank=True)
     status = models.CharField(max_length=12, choices=Status.choices, default=Status.DRAFT)

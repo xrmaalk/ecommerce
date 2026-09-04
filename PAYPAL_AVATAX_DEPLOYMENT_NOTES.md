@@ -1,4 +1,4 @@
-# Organic Emperor PayPal Sandbox and AvaTax setup — v1.5.0
+# OrganicEmperor PayPal Sandbox and AvaTax setup — v1.5.0
 
 The checkout remains CAD-denominated. Shipping rates stay database-managed and
 are not changed by this patch.

@@ -6,8 +6,8 @@ onMounted(async () => {
   await nextTick()
 
   try {
-    // Safely trigger the AdSense array push for SPA route changes
-    ;(adsbygoogle = window.adsbygoogle || []).push({})
+    // Each mounted block queues its own ad, even before the async script loads.
+    ;(window.adsbygoogle = window.adsbygoogle || []).push({})
   } catch (error) {
     console.error("AdSense failed to initialize:", error)
   }

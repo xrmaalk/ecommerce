@@ -30,9 +30,9 @@ npm run dev
 - `organicemperor.com`: built Vue storefront (`frontend/dist`)
 - `api.organicemperor.com`: Django application and `/api/v1/` endpoints
 - `admin.organicemperor.com`: reverse proxy to the same Django application `/admin/`
-- `organicarchives.organicemperor.com`: Organic Archives Vue application (`frontend/dist-archives`)
+- `organicarchives.organicemperor.com`: OrganicArchives Vue application (`frontend/dist-archives`)
 
-## Organic Archives
+## OrganicArchives
 
 The editorial archive provides a numbered feed, category filters, search, and
 article pages with images and videos. Editors publish articles, news releases,

@@ -23,7 +23,7 @@ class Migration(migrations.Migration):
                 ('kind', models.CharField(choices=[('article', 'Article'), ('release', 'News release'), ('update', 'Update')], default='article', max_length=12)),
                 ('topic', models.CharField(blank=True, help_text='Optional topic, e.g. Ingredients or Behind the scenes.', max_length=60)),
                 ('excerpt', models.TextField(help_text='A short introduction for the feed and search results.', max_length=500)),
-                ('author_name', models.CharField(default='Organic Emperor', max_length=120)),
+                ('author_name', models.CharField(default='OrganicEmperor', max_length=120)),
                 ('cover_image', models.ImageField(blank=True, upload_to='archives/covers/%Y/%m/')),
                 ('cover_alt', models.CharField(blank=True, max_length=250)),
                 ('status', models.CharField(choices=[('draft', 'Draft'), ('published', 'Published')], default='draft', max_length=12)),

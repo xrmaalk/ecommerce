@@ -74,6 +74,16 @@ class ArchivesTests(APITestCase):
         user.save()
         self.assertEqual(self.client.get(url).status_code, 403)
 
+    def test_admin_login_and_publisher_pages_render(self):
+        response = self.client.get(reverse("admin:archives_post_changelist"), follow=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "admin/login.html")
+        editor = get_user_model().objects.create_superuser(username="page-editor", password="local-test-password")
+        self.client.force_login(editor)
+        for name in ("admin:archives_post_changelist", "admin:archives_post_add"):
+            with self.subTest(name=name):
+                self.assertEqual(self.client.get(reverse(name)).status_code, 200)
+
     def test_publication_and_accessible_image_validation(self):
         self.public.published_at = None
         with self.assertRaises(ValidationError):

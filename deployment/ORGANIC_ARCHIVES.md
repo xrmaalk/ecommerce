@@ -1,6 +1,6 @@
-# Organic Archives
+# OrganicArchives
 
-Organic Archives is a separate Vue application built from the existing frontend
+OrganicArchives is a separate Vue application built from the existing frontend
 dependencies. The store keeps its current entry point and build. Content lives in
 the existing Django database and media storage, and publishing uses Django Admin.
 
@@ -29,7 +29,7 @@ as non-executable media. MP4 with H.264/AAC is a broadly compatible encoding.
 Only supported HTTPS YouTube/Vimeo URLs can become embedded players. External
 players may make third-party requests when an article is opened.
 
-## Deploy on the existing Organic Emperor hosting
+## Deploy on the existing OrganicEmperor hosting
 
 Deploy backend first, then frontend. Both are required; uploading the frontend
 alone cannot provide persistent publishing. The Django application cannot run in
@@ -46,6 +46,7 @@ the Cloudflare Workers runtime used by Sites, so retain the existing Python host
 
    Restart the existing Passenger/WSGI application using the hosting panel.
    Existing database and media backup procedures should include archives content.
+
 3. If production sets `CORS_ALLOWED_ORIGINS` explicitly, ensure it includes
    `https://organicarchives.organicemperor.com` alongside existing origins.
    The default already includes it. Publishing occurs on the admin origin;
@@ -98,7 +99,9 @@ Open `http://127.0.0.1:5174`. Requests to `/api` and `/media` proxy to port 8001
 The sample seeder refuses to run outside the specifically named preview SQLite
 database and requires DEBUG. To test publishing locally, create a superuser in
 that same preview environment and open `http://127.0.0.1:8001/admin/` directly.
-The preview header's publisher link intentionally targets the real admin domain.
+The development preview's Publisher login link opens the local admin on port 8001.
+Production builds use the live admin domain. Set `VITE_ARCHIVES_ADMIN_URL` in the
+frontend build environment to override the full publisher URL for another host.
 
 Validation (with the development backend environment above):
 

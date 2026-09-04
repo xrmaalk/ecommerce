@@ -5,7 +5,7 @@
       href="https://organicarchives.organicemperor.com"
       target="_blank"
       rel="noopener noreferrer">
-      Read Organic Archives <span aria-hidden="true">→</span>
+      Read OrganicArchives <span aria-hidden="true">→</span>
     </a>
   </div>
 </template>
