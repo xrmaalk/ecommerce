@@ -24,12 +24,15 @@ const publisherUrl =
         to="/"
         class="archive-brand"
         aria-label="OrganicArchives home">
-        <span class="archive-monogram" aria-hidden="true"
-          >OA<span>.</span></span
-        >
-        <span class="archive-wordmark"
-          >Organic<span>Archives</span><small>BY OrganicEmperor</small></span
-        >
+        <img
+          class="brand-logo"
+          src="https://organicarchives.organicemperor.com/organic-emperor-emblem.png"
+          width="52"
+          height="52"
+          alt="OrganicArchives emblem"
+          aria-hidden="true" />
+
+        <small>OrganicArchives</small>
       </RouterLink>
       <nav aria-label="Main navigation">
         <RouterLink
@@ -58,7 +61,13 @@ const publisherUrl =
         role="complementary"
         aria-label="Footer advertisement" />
       <RouterLink to="/" class="footer-brand"
-        >OA. <span>OrganicArchives</span></RouterLink
+        ><img
+          class="brand-logo"
+          src="https://organicarchives.organicemperor.com/organic-emperor-emblem.png"
+          width="52"
+          height="52"
+          alt="OrganicArchives emblem"
+          aria-hidden="true" /><span>OrganicArchives</span></RouterLink
       >
       <p>© {{ new Date().getFullYear() }} OrganicEmperor</p>
       <a href="https://organicemperor.com/privacy">Privacy</a>
