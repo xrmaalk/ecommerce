@@ -4,6 +4,8 @@ from io import BytesIO
 
 from PIL import Image
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group, Permission
+from django.core.management import call_command
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import override_settings
@@ -12,6 +14,7 @@ from django.utils import timezone
 from rest_framework.test import APITestCase
 
 from .models import Post, PostBlock, video_embed_url
+from .publisher import PUBLISHER_GROUP_NAME, PUBLISHER_PERMISSION_CODENAMES
 
 
 class ArchivesTests(APITestCase):
@@ -84,6 +87,75 @@ class ArchivesTests(APITestCase):
             with self.subTest(name=name):
                 self.assertEqual(self.client.get(reverse(name)).status_code, 200)
 
+    def test_archives_publisher_is_staff_with_only_archives_access(self):
+        publisher = get_user_model().objects.create_user(
+            username="publisher",
+            password="local-test-password",
+            is_active=False,
+            is_superuser=True,
+        )
+        unrelated_group = Group.objects.create(name="Store staff")
+        unrelated_permission = Permission.objects.get(
+            content_type__app_label="catalog",
+            codename="change_product",
+        )
+        unrelated_group.permissions.add(unrelated_permission)
+        publisher.groups.add(unrelated_group)
+        publisher.user_permissions.add(unrelated_permission)
+        Group.objects.get(name=PUBLISHER_GROUP_NAME).permissions.add(
+            unrelated_permission
+        )
+
+        call_command("assign_archives_publisher", publisher.username)
+        publisher.refresh_from_db()
+
+        self.assertTrue(publisher.is_active)
+        self.assertTrue(publisher.is_staff)
+        self.assertFalse(publisher.is_superuser)
+        self.assertEqual(
+            set(publisher.groups.values_list("name", flat=True)),
+            {PUBLISHER_GROUP_NAME},
+        )
+        self.assertFalse(publisher.user_permissions.exists())
+        self.assertEqual(
+            {
+                permission.split(".", 1)[1]
+                for permission in publisher.get_all_permissions()
+            },
+            PUBLISHER_PERMISSION_CODENAMES,
+        )
+
+        archive_url = reverse("admin:archives_post_changelist")
+        login = self.client.post(
+            reverse("admin:login"),
+            {
+                "username": publisher.username,
+                "password": "local-test-password",
+                "next": archive_url,
+            },
+        )
+        self.assertRedirects(login, archive_url, fetch_redirect_response=False)
+        for name in (
+            "admin:index",
+            "admin:archives_post_changelist",
+            "admin:archives_post_add",
+        ):
+            with self.subTest(allowed=name):
+                self.assertEqual(self.client.get(reverse(name)).status_code, 200)
+
+        for name in (
+            "admin:catalog_product_changelist",
+            "admin:commerce_order_changelist",
+            "admin:auth_user_changelist",
+        ):
+            with self.subTest(forbidden=name):
+                self.assertEqual(self.client.get(reverse(name)).status_code, 403)
+
+        index = self.client.get(reverse("admin:index"))
+        self.assertContains(index, "OrganicArchives")
+        self.assertNotContains(index, "Products")
+        self.assertNotContains(index, "Orders")
+
     def test_publication_and_accessible_image_validation(self):
         self.public.published_at = None
         with self.assertRaises(ValidationError):
@@ -93,9 +165,13 @@ class ArchivesTests(APITestCase):
         with self.assertRaises(ValidationError):
             PostBlock(post=self.public, kind="text", text="  ").full_clean()
 
-    def test_editor_can_publish_a_post_with_image_and_video_inlines(self):
-        editor = get_user_model().objects.create_superuser(username="editor", password="local-test-password")
-        self.client.force_login(editor)
+    def test_publisher_can_publish_a_post_with_image_and_video_inlines(self):
+        publisher = get_user_model().objects.create_user(
+            username="post-publisher",
+            password="local-test-password",
+        )
+        call_command("assign_archives_publisher", publisher.username)
+        self.client.force_login(publisher)
         with tempfile.TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
             buffer = BytesIO()
             Image.new("RGB", (2, 2), "green").save(buffer, format="PNG")

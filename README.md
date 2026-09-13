@@ -38,6 +38,18 @@ The editorial archive provides a numbered feed, category filters, search, and
 article pages with images and videos. Editors publish articles, news releases,
 and updates through Django Admin, including drafts and scheduled publication.
 
+Running `python manage.py migrate` creates an `Organic Archives Publishers`
+group scoped to Posts and Post Blocks. After creating a normal user and setting
+its password, provision the exact staff-only scope with:
+
+```bash
+python manage.py assign_archives_publisher USERNAME
+```
+
+The command removes superuser status, other groups, and direct permissions so
+the account cannot access customer, catalogue, commerce, or authentication
+tables in Django Admin.
+
 Run `npm run dev:archives` or `npm run build:archives` from `frontend` for the
 separate archive application. See [publishing, local preview, and deployment
 instructions](deployment/ORGANIC_ARCHIVES.md).

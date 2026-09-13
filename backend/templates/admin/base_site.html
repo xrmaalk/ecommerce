@@ -45,9 +45,14 @@
   </a>
 </div>
 {% endblock %} {% block nav-global %}
-<nav class="oe-global-nav" aria-label="Store shortcuts">
-  {% if user.is_active and user.is_staff %}
+<nav class="oe-global-nav" aria-label="Administration shortcuts">
+  {% if perms.archives.view_post or perms.archives.change_post %}
+  <a href="{% url 'admin:archives_post_changelist' %}">Organic Archives</a>
+  {% endif %}
+  {% if perms.catalog.view_product or perms.catalog.change_product %}
   <a href="{% url 'admin:catalog_product_changelist' %}">Products</a>
+  {% endif %}
+  {% if perms.catalog.view_category or perms.catalog.change_category %}
   <a href="{% url 'admin:catalog_category_changelist' %}">Categories</a>
   {% endif %}
   <a
