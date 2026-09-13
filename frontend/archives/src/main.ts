@@ -16,6 +16,11 @@ const router = createRouter({
       component: () => import("../../src/archives/PostView.vue"),
     },
     {
+      path: "/reader",
+      name: "reader",
+      component: () => import("../../src/archives/ReaderView.vue"),
+    },
+    {
       path: "/:pathMatch(.*)*",
       name: "missing",
       component: () => import("../../src/archives/NotFoundView.vue"),

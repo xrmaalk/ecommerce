@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Post, PostBlock
+from .models import ArchiveSubscription, Post, PostBlock, PostComment, PostLike
 
 
 class PostBlockInline(admin.StackedInline):
@@ -22,3 +22,37 @@ class PostAdmin(admin.ModelAdmin):
         ("Cover image", {"fields": ("cover_image", "cover_alt")}),
         ("Publishing", {"fields": ("status", "published_at", "created_at", "updated_at")}),
     )
+
+
+@admin.register(PostComment)
+class PostCommentAdmin(admin.ModelAdmin):
+    list_display = ("post", "user", "is_visible", "created_at")
+    list_filter = ("is_visible", "created_at")
+    search_fields = ("post__title", "user__email", "body")
+    readonly_fields = ("post", "user", "body", "created_at", "updated_at")
+    fields = ("post", "user", "body", "is_visible", "created_at", "updated_at")
+
+    def has_add_permission(self, request):
+        return False
+
+
+@admin.register(PostLike)
+class PostLikeAdmin(admin.ModelAdmin):
+    list_display = ("post", "user", "created_at")
+    search_fields = ("post__title", "user__email")
+    readonly_fields = ("post", "user", "created_at")
+
+    def has_add_permission(self, request):
+        return False
+
+
+@admin.register(ArchiveSubscription)
+class ArchiveSubscriptionAdmin(admin.ModelAdmin):
+    list_display = ("user", "is_active", "subscribed_at", "updated_at")
+    list_editable = ("is_active",)
+    list_filter = ("is_active", "subscribed_at")
+    search_fields = ("user__email", "user__first_name", "user__last_name")
+    readonly_fields = ("user", "subscribed_at", "last_read_at", "updated_at")
+
+    def has_add_permission(self, request):
+        return False

@@ -2,6 +2,10 @@
 import { isDemo } from "./api"
 import ArchiveThemeToggle from "./ArchiveThemeToggle.vue"
 import AdSenseBlock from "../components/adsense/AdSenseBlock.vue"
+import { useArchiveReaderStore } from "./readerStore"
+
+const reader = useArchiveReaderStore()
+void reader.initialize()
 
 const publisherUrl =
   import.meta.env.VITE_ARCHIVES_ADMIN_URL ||
@@ -41,6 +45,15 @@ const publisherUrl =
           >The feed</RouterLink
         >
         <ArchiveThemeToggle />
+        <RouterLink
+          class="reader-account-link"
+          :to="{ name: 'reader' }"
+          :class="{ active: $route.name === 'reader' }">
+          {{ reader.isAuthenticated ? "Reader account" : "Reader sign in" }}
+          <span v-if="reader.notifications.unread_count" class="notification-count">
+            {{ reader.notifications.unread_count }}
+          </span>
+        </RouterLink>
         <a class="editor-link" :href="publisherUrl"
           >Publisher login <span aria-hidden="true">↗</span></a
         >

@@ -91,10 +91,10 @@ MEDIA_URL = "/media/"
 MEDIA_ROOT = Path(os.environ.get("DJANGO_MEDIA_ROOT", BASE_DIR / "media"))
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 CORS_ALLOWED_ORIGINS = [origin.strip() for origin in os.environ.get(
-    "CORS_ALLOWED_ORIGINS", "http://localhost:5173,https://organicemperor.com,https://www.organicemperor.com,https://stagging.organicemperor.com,https://organicarchives.organicemperor.com").split(",") if origin.strip()]
+    "CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:5174,http://127.0.0.1:5174,https://organicemperor.com,https://www.organicemperor.com,https://stagging.organicemperor.com,https://organicarchives.organicemperor.com").split(",") if origin.strip()]
 CORS_ALLOW_CREDENTIALS = True
 CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in os.environ.get(
-    "CSRF_TRUSTED_ORIGINS", "http://localhost:5173,https://organicemperor.com,https://www.organicemperor.com,https://stagging.organicemperor.com,https://admin.organicemperor.com,https://api.organicemperor.com").split(",") if origin.strip()]
+    "CSRF_TRUSTED_ORIGINS", "http://localhost:5173,http://localhost:5174,http://127.0.0.1:5174,https://organicemperor.com,https://www.organicemperor.com,https://stagging.organicemperor.com,https://organicarchives.organicemperor.com,https://admin.organicemperor.com,https://api.organicemperor.com").split(",") if origin.strip()]
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 SESSION_COOKIE_SECURE = not DEBUG
 SESSION_COOKIE_HTTPONLY = True
@@ -108,6 +108,7 @@ REST_FRAMEWORK = {"DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.All
                   "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination", "PAGE_SIZE": 24,
                   "DEFAULT_THROTTLE_RATES": {
                       "authentication": "20/minute",
+                      "archives_interaction": "30/minute",
                       "checkout": "30/minute",
                       "payment": "10/minute",
 }}

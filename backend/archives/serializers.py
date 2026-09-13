@@ -2,7 +2,7 @@ import math
 
 from rest_framework import serializers
 
-from .models import Post, PostBlock, video_embed_url
+from .models import Post, PostBlock, PostComment, video_embed_url
 
 
 class PostBlockSerializer(serializers.ModelSerializer):
@@ -40,3 +40,34 @@ class PostDetailSerializer(PostListSerializer):
 
     class Meta(PostListSerializer.Meta):
         fields = PostListSerializer.Meta.fields + ("blocks", "updated_at")
+
+
+class PostCommentSerializer(serializers.ModelSerializer):
+    author_name = serializers.SerializerMethodField()
+    is_mine = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PostComment
+        fields = ("id", "author_name", "body", "created_at", "is_mine")
+        read_only_fields = ("id", "author_name", "created_at", "is_mine")
+
+    def validate_body(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError("Write a comment before posting.")
+        return value
+
+    def get_author_name(self, obj):
+        first_name = obj.user.first_name.strip()
+        last_name = obj.user.last_name.strip()
+        if first_name and last_name:
+            return f"{first_name} {last_name[0]}."
+        return first_name or "Reader"
+
+    def get_is_mine(self, obj):
+        request = self.context.get("request")
+        return bool(
+            request
+            and request.user.is_authenticated
+            and request.user.pk == obj.user_id
+        )

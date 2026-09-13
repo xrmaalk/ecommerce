@@ -25,6 +25,35 @@ cp .env.example .env
 npm run dev
 ```
 
+## Backend deployment ZIP
+
+Create a clean backend archive from the repository root with:
+
+```bash
+python scripts/package_backend.py
+```
+
+The script uses Git's `.gitignore` rules, includes tracked files and new
+non-ignored source files, and excludes local databases, environment files,
+uploads, collected static files, caches, logs, and ZIP files. It writes
+`backend.zip` with the `backend/` directory at the archive root, atomically
+replacing the previous deployment archive, validating the result, and printing
+its SHA-256 checksum. Custom output names remain protected; use
+`--output NAME.zip`, adding `--force` only when replacing that custom file.
+
+Package both frontend deployments with:
+
+```bash
+python scripts/package_frontends.py
+```
+
+This runs a shared type check, rebuilds both Vite applications, and atomically
+replaces `dist.zip` and `dist-archives.zip`. Each archive contains the contents
+of its corresponding distribution directory at the ZIP root, including the
+required `.htaccess` and `index.html`, ready to extract directly into its web
+document root. Use `--skip-build` only when the existing distribution folders
+are already current.
+
 ## Domain map
 
 - `organicemperor.com`: built Vue storefront (`frontend/dist`)
@@ -50,6 +79,12 @@ The command removes superuser status, other groups, and direct permissions so
 the account cannot access customer, catalogue, commerce, or authentication
 tables in Django Admin.
 
+Readers use ordinary non-staff customer accounts. They can register or sign in
+from the Archives `/reader` page, subscribe to an in-app new-post notification
+feed, like a published post once, and leave plain-text comments. They never
+receive Django Admin or post-editing permissions. Publishers can moderate
+comments, likes, and subscriptions from the Organic Archives section of Admin.
+
 Run `npm run dev:archives` or `npm run build:archives` from `frontend` for the
 separate archive application. See [publishing, local preview, and deployment
 instructions](deployment/ORGANIC_ARCHIVES.md).
@@ -63,6 +98,12 @@ instructions](deployment/ORGANIC_ARCHIVES.md).
 - `GET /api/v1/products/<slug>/`
 - `GET /api/v1/archives/posts/`
 - `GET /api/v1/archives/posts/<slug>/`
+- `GET /api/v1/archives/posts/<slug>/engagement/`
+- `PUT|DELETE /api/v1/archives/posts/<slug>/like/`
+- `POST /api/v1/archives/posts/<slug>/comments/`
+- `GET|PUT|DELETE /api/v1/archives/subscription/`
+- `GET /api/v1/archives/notifications/`
+- `POST /api/v1/archives/notifications/read/`
 - `GET /api/v1/auth/csrf/`
 - `POST /api/v1/auth/register/`
 - `POST /api/v1/auth/sign-in/`

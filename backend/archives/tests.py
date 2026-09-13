@@ -11,9 +11,17 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import override_settings
 from django.urls import reverse
 from django.utils import timezone
-from rest_framework.test import APITestCase
+from rest_framework import status
+from rest_framework.test import APIClient, APITestCase
 
-from .models import Post, PostBlock, video_embed_url
+from .models import (
+    ArchiveSubscription,
+    Post,
+    PostBlock,
+    PostComment,
+    PostLike,
+    video_embed_url,
+)
 from .publisher import PUBLISHER_GROUP_NAME, PUBLISHER_PERMISSION_CODENAMES
 
 
@@ -66,6 +74,133 @@ class ArchivesTests(APITestCase):
             self.assertEqual(self.client.post(self.list_url, {"title": "Unauthorized"}).status_code, 405)
             self.assertEqual(self.client.patch(self.detail_url(self.public), {"title": "Unauthorized"}).status_code, 405)
             self.assertEqual(self.client.delete(self.detail_url(self.public)).status_code, 405)
+
+    def test_reader_can_like_public_posts_without_editorial_access(self):
+        reader = get_user_model().objects.create_user(
+            username="reader@example.com",
+            password="local-test-password",
+        )
+        like_url = reverse("archives:post-like", kwargs={"slug": self.public.slug})
+        engagement_url = reverse(
+            "archives:post-engagement",
+            kwargs={"slug": self.public.slug},
+        )
+
+        self.assertEqual(self.client.put(like_url).status_code, status.HTTP_403_FORBIDDEN)
+        self.client.force_login(reader)
+        self.assertEqual(self.client.put(like_url).status_code, status.HTTP_201_CREATED)
+        self.assertEqual(self.client.put(like_url).status_code, status.HTTP_200_OK)
+        self.assertEqual(PostLike.objects.filter(post=self.public).count(), 1)
+        engagement = self.client.get(engagement_url).data
+        self.assertTrue(engagement["liked"])
+        self.assertEqual(engagement["like_count"], 1)
+
+        self.assertEqual(self.client.delete(like_url).status_code, status.HTTP_200_OK)
+        self.assertFalse(self.client.get(engagement_url).data["liked"])
+        self.assertEqual(
+            self.client.put(
+                reverse("archives:post-like", kwargs={"slug": self.draft.slug})
+            ).status_code,
+            status.HTTP_404_NOT_FOUND,
+        )
+        self.assertFalse(reader.is_staff)
+        self.assertEqual(
+            self.client.get(reverse("admin:archives_post_changelist")).status_code,
+            status.HTTP_302_FOUND,
+        )
+
+    def test_reader_comments_are_public_and_can_be_moderated(self):
+        reader = get_user_model().objects.create_user(
+            username="commenter@example.com",
+            first_name="Avery",
+            last_name="Stone",
+            password="local-test-password",
+        )
+        comment_url = reverse(
+            "archives:post-comment",
+            kwargs={"slug": self.public.slug},
+        )
+        engagement_url = reverse(
+            "archives:post-engagement",
+            kwargs={"slug": self.public.slug},
+        )
+
+        self.assertEqual(
+            self.client.post(comment_url, {"body": "Hello"}).status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+        self.client.force_login(reader)
+        response = self.client.post(
+            comment_url,
+            {"body": "  Thoughtful and useful.  "},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["author_name"], "Avery S.")
+        self.assertEqual(response.data["body"], "Thoughtful and useful.")
+        self.assertTrue(response.data["is_mine"])
+
+        comment = PostComment.objects.get()
+        comment.is_visible = False
+        comment.save(update_fields=("is_visible",))
+        engagement = self.client.get(engagement_url).data
+        self.assertEqual(engagement["comment_count"], 0)
+        self.assertEqual(engagement["comments"], [])
+        self.assertEqual(
+            self.client.post(comment_url, {"body": "   "}, format="json").status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+
+    def test_subscription_surfaces_only_newly_published_notifications(self):
+        reader = get_user_model().objects.create_user(
+            username="subscriber@example.com",
+            password="local-test-password",
+        )
+        self.client.force_login(reader)
+        subscription_url = reverse("archives:subscription")
+        notifications_url = reverse("archives:notifications")
+
+        subscribed = self.client.put(subscription_url)
+        self.assertEqual(subscribed.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(subscribed.data["subscribed"])
+        self.assertEqual(self.client.get(notifications_url).data["unread_count"], 0)
+
+        subscription = ArchiveSubscription.objects.get(user=reader)
+        published_at = timezone.now()
+        subscription.last_read_at = published_at - timedelta(seconds=1)
+        subscription.save(update_fields=("last_read_at",))
+        Post.objects.create(
+            title="New for subscribers",
+            slug="new-for-subscribers",
+            excerpt="A new notification.",
+            status="published",
+            published_at=published_at,
+        )
+        notifications = self.client.get(notifications_url).data
+        self.assertTrue(notifications["subscribed"])
+        self.assertEqual(notifications["unread_count"], 1)
+        self.assertEqual(notifications["results"][0]["slug"], "new-for-subscribers")
+
+        marked_read = self.client.post(reverse("archives:notifications-read"))
+        self.assertEqual(marked_read.status_code, status.HTTP_200_OK)
+        self.assertEqual(self.client.get(notifications_url).data["unread_count"], 0)
+        self.assertEqual(self.client.delete(subscription_url).status_code, status.HTTP_200_OK)
+        self.assertFalse(self.client.get(notifications_url).data["subscribed"])
+
+    def test_reader_interactions_require_csrf(self):
+        reader = get_user_model().objects.create_user(
+            username="csrf-reader@example.com",
+            password="local-test-password",
+        )
+        client = APIClient(enforce_csrf_checks=True)
+        client.force_login(reader)
+        like_url = reverse("archives:post-like", kwargs={"slug": self.public.slug})
+        self.assertEqual(client.put(like_url).status_code, status.HTTP_403_FORBIDDEN)
+        csrf_token = client.get(reverse("accounts:csrf")).data["csrf_token"]
+        self.assertEqual(
+            client.put(like_url, HTTP_X_CSRFTOKEN=csrf_token).status_code,
+            status.HTTP_201_CREATED,
+        )
 
     def test_admin_publishing_requires_staff_permission(self):
         url = reverse("admin:archives_post_add")
@@ -139,6 +274,9 @@ class ArchivesTests(APITestCase):
             "admin:index",
             "admin:archives_post_changelist",
             "admin:archives_post_add",
+            "admin:archives_postcomment_changelist",
+            "admin:archives_postlike_changelist",
+            "admin:archives_archivesubscription_changelist",
         ):
             with self.subTest(allowed=name):
                 self.assertEqual(self.client.get(reverse(name)).status_code, 200)

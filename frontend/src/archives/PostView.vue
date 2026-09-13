@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onUnmounted, ref, watch } from "vue"
+import { computed, onUnmounted, ref, watch } from "vue"
 import { useRoute } from "vue-router"
 import {
   ArchiveError,
@@ -8,11 +8,57 @@ import {
   kindLabels,
   type PostDetail,
 } from "./api"
+import {
+  addPostComment,
+  getPostEngagement,
+  likePost,
+  ReaderApiError,
+  unlikePost,
+  type PostEngagement,
+} from "./readerApi"
+import { useArchiveReaderStore } from "./readerStore"
+
 const route = useRoute()
+const reader = useArchiveReaderStore()
 const post = ref<PostDetail | null>(null)
 const loading = ref(true)
 const missing = ref(false)
+const engagement = ref<PostEngagement>({
+  like_count: 0,
+  liked: false,
+  comment_count: 0,
+  comments: [],
+})
+const engagementLoading = ref(true)
+const likeBusy = ref(false)
+const commentBusy = ref(false)
+const commentBody = ref("")
+const interactionError = ref("")
+const readerLink = computed(() => ({
+  name: "reader",
+  query: { returnTo: route.fullPath },
+}))
 let controller: AbortController | undefined
+
+function showInteractionError(error: unknown) {
+  interactionError.value =
+    error instanceof ReaderApiError
+      ? error.message
+      : "That could not be saved. Please try again."
+}
+
+async function loadEngagement(slug: string) {
+  engagementLoading.value = true
+  try {
+    const data = await getPostEngagement(slug)
+    if (String(route.params.slug) === slug) engagement.value = data
+  } catch (error) {
+    showInteractionError(error)
+  } finally {
+    if (String(route.params.slug) === slug) engagementLoading.value = false
+  }
+}
+
 async function load() {
   controller?.abort()
   const request = new AbortController()
@@ -20,9 +66,13 @@ async function load() {
   loading.value = true
   missing.value = false
   post.value = null
+  interactionError.value = ""
+  commentBody.value = ""
+  void reader.initialize()
   try {
+    const slug = String(route.params.slug)
     const data = await getArchive<PostDetail>(
-      `posts/${encodeURIComponent(String(route.params.slug))}/`,
+      `posts/${encodeURIComponent(slug)}/`,
       request.signal,
     )
     if (request.signal.aborted) return
@@ -40,6 +90,7 @@ async function load() {
     document
       .querySelector('meta[property="og:type"]')
       ?.setAttribute("content", "article")
+    void loadEngagement(slug)
   } catch (error) {
     if (!request.signal.aborted)
       missing.value = error instanceof ArchiveError && error.status === 404
@@ -47,6 +98,49 @@ async function load() {
     if (!request.signal.aborted) loading.value = false
   }
 }
+
+async function toggleLike() {
+  if (!post.value || !reader.isAuthenticated) return
+  likeBusy.value = true
+  interactionError.value = ""
+  try {
+    const result = engagement.value.liked
+      ? await unlikePost(post.value.slug)
+      : await likePost(post.value.slug)
+    engagement.value.liked = result.liked
+    engagement.value.like_count = result.like_count
+  } catch (error) {
+    showInteractionError(error)
+  } finally {
+    likeBusy.value = false
+  }
+}
+
+async function submitComment() {
+  if (!post.value || !reader.isAuthenticated || !commentBody.value.trim()) return
+  commentBusy.value = true
+  interactionError.value = ""
+  try {
+    const comment = await addPostComment(post.value.slug, commentBody.value)
+    engagement.value.comments.push(comment)
+    engagement.value.comment_count += 1
+    commentBody.value = ""
+  } catch (error) {
+    showInteractionError(error)
+  } finally {
+    commentBusy.value = false
+  }
+}
+
+async function toggleSubscription() {
+  interactionError.value = ""
+  try {
+    await reader.toggleSubscription()
+  } catch (error) {
+    showInteractionError(error)
+  }
+}
+
 watch(() => route.params.slug, load, { immediate: true })
 onUnmounted(() => controller?.abort())
 </script>
@@ -151,6 +245,87 @@ onUnmounted(() => controller?.abort())
           </figure>
         </template>
       </div>
+      <section class="reader-community" aria-labelledby="community-title">
+        <header>
+          <div>
+            <span class="eyebrow">THE READER CIRCLE</span>
+            <h2 id="community-title">A place to respond.</h2>
+          </div>
+          <div class="reader-actions">
+            <button
+              v-if="reader.isAuthenticated"
+              type="button"
+              class="interaction-button"
+              :class="{ selected: engagement.liked }"
+              :aria-pressed="engagement.liked"
+              :disabled="likeBusy || engagementLoading"
+              @click="toggleLike">
+              <span aria-hidden="true">{{ engagement.liked ? "♥" : "♡" }}</span>
+              {{ engagement.like_count }}
+              {{ engagement.like_count === 1 ? "like" : "likes" }}
+            </button>
+            <RouterLink v-else class="interaction-button" :to="readerLink">
+              ♡ {{ engagement.like_count }}
+              {{ engagement.like_count === 1 ? "like" : "likes" }}
+            </RouterLink>
+            <button
+              v-if="reader.isAuthenticated"
+              type="button"
+              class="interaction-button"
+              :class="{ selected: reader.subscribed }"
+              :aria-pressed="reader.subscribed"
+              :disabled="reader.busy"
+              @click="toggleSubscription">
+              {{ reader.subscribed ? "Subscribed" : "Subscribe" }}
+            </button>
+          </div>
+        </header>
+
+        <p v-if="interactionError" class="reader-feedback reader-feedback--error" role="alert">
+          {{ interactionError }}
+        </p>
+
+        <div class="comment-heading">
+          <h3>
+            {{ engagement.comment_count }}
+            {{ engagement.comment_count === 1 ? "comment" : "comments" }}
+          </h3>
+        </div>
+        <ol v-if="engagement.comments.length" class="comment-list">
+          <li v-for="comment in engagement.comments" :key="comment.id">
+            <div class="comment-meta">
+              <strong>{{ comment.author_name }}</strong>
+              <span v-if="comment.is_mine">You</span>
+              <time :datetime="comment.created_at">{{ formatDate(comment.created_at) }}</time>
+            </div>
+            <p>{{ comment.body }}</p>
+          </li>
+        </ol>
+        <p v-else-if="!engagementLoading" class="empty-comments">
+          No comments yet. You can start the conversation.
+        </p>
+
+        <form v-if="reader.isAuthenticated" class="comment-form" @submit.prevent="submitComment">
+          <label for="reader-comment">Leave a comment as {{ reader.displayName }}</label>
+          <textarea
+            id="reader-comment"
+            v-model="commentBody"
+            maxlength="1200"
+            rows="4"
+            placeholder="Share something thoughtful…"
+            required />
+          <div>
+            <small>{{ commentBody.length }}/1200</small>
+            <button class="solid-button" type="submit" :disabled="commentBusy || !commentBody.trim()">
+              {{ commentBusy ? "Posting…" : "Post comment" }}
+            </button>
+          </div>
+        </form>
+        <div v-else class="reader-sign-in-note">
+          <p>Sign in with a reader account to subscribe, like, or comment.</p>
+          <RouterLink class="solid-button" :to="readerLink">Reader sign in</RouterLink>
+        </div>
+      </section>
       <footer class="reader-end">
         <span class="archive-monogram" aria-hidden="true"
           >OA<span>.</span></span

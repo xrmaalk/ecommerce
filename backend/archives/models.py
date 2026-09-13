@@ -1,6 +1,7 @@
 import re
 from urllib.parse import parse_qs, urlparse
 
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import FileExtensionValidator
 from django.db import models
@@ -128,3 +129,72 @@ class PostBlock(models.Model):
                 errors["video_url"] = "Use a valid HTTPS YouTube or public Vimeo video URL."
         if errors:
             raise ValidationError(errors)
+
+
+class ArchiveSubscription(models.Model):
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        related_name="archive_subscription",
+        on_delete=models.CASCADE,
+    )
+    is_active = models.BooleanField(default=True)
+    subscribed_at = models.DateTimeField(auto_now_add=True)
+    last_read_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("-subscribed_at",)
+
+    def __str__(self):
+        return f"{self.user} ({'active' if self.is_active else 'inactive'})"
+
+
+class PostLike(models.Model):
+    post = models.ForeignKey(Post, related_name="likes", on_delete=models.CASCADE)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        related_name="archive_likes",
+        on_delete=models.CASCADE,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("-created_at",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=("post", "user"),
+                name="unique_archives_post_like",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.user} likes {self.post}"
+
+
+class PostComment(models.Model):
+    post = models.ForeignKey(
+        Post,
+        related_name="comments",
+        on_delete=models.CASCADE,
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        related_name="archive_comments",
+        on_delete=models.CASCADE,
+    )
+    body = models.TextField(max_length=1200)
+    is_visible = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ("created_at", "id")
+        indexes = [
+            models.Index(
+                fields=("post", "is_visible", "created_at"),
+                name="archives_comment_public_idx",
+            )
+        ]
+
+    def __str__(self):
+        return f"Comment by {self.user} on {self.post}"

@@ -27,7 +27,7 @@ export type PostDetail = Post & { blocks: Block[]; updated_at: string }
 export type Page = { count: number; next: string | null; previous: string | null; results: Post[] }
 export const kindLabels: Record<PostKind, string> = { article: "Article", release: "News release", update: "Update" }
 export const isDemo = import.meta.env.VITE_ARCHIVES_DEMO === "true"
-const apiBase = (import.meta.env.VITE_ARCHIVES_API_BASE_URL || (import.meta.env.DEV ? "/api/v1" : "https://api.organicemperor.com/api/v1")).replace(/\/+$/, "")
+export const apiBase = (import.meta.env.VITE_ARCHIVES_API_BASE_URL || (import.meta.env.DEV ? "/api/v1" : "https://api.organicemperor.com/api/v1")).replace(/\/+$/, "")
 
 export class ArchiveError extends Error {
   constructor(public status: number) { super("Could not load the archives") }
