@@ -3,12 +3,20 @@ Options -Indexes
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /
+  # Missing hashed assets must return 404 instead of the SPA HTML document.
+  RewriteRule ^assets/ - [L]
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteCond %{REQUEST_FILENAME} !-d
   RewriteRule ^ index.html [L]
 </IfModule>
 
 <IfModule mod_headers.c>
+  # Hashed bundles can be cached; the entry point must discover every new hash.
+  <FilesMatch "^index\.html$">
+    Header always set Cache-Control "no-cache, no-store, must-revalidate"
+    Header always set Pragma "no-cache"
+    Header always set Expires "0"
+  </FilesMatch>
   Header always set X-Content-Type-Options "nosniff"
   Header always set Referrer-Policy "strict-origin-when-cross-origin"
   Header always set Permissions-Policy "camera=(), microphone=(), geolocation=()"

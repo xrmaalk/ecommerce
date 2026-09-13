@@ -60,7 +60,10 @@ def distribution_files(source: Path) -> list[Path]:
         raise PackagingError(f"Missing distribution directory: {source}")
     files = sorted(
         (path for path in source.rglob("*") if path.is_file()),
-        key=lambda path: path.relative_to(source).as_posix(),
+        key=lambda path: (
+            path.relative_to(source).as_posix() == "index.html",
+            path.relative_to(source).as_posix(),
+        ),
     )
     if not files:
         raise PackagingError(f"No files found in {source}.")

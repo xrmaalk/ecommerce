@@ -54,6 +54,11 @@ required `.htaccess` and `index.html`, ready to extract directly into its web
 document root. Use `--skip-build` only when the existing distribution folders
 are already current.
 
+During deployment, extract over the current document root without deleting the
+old `assets/` directory first. The packager places `index.html` last in each ZIP,
+and `.htaccess` prevents the entry page from being cached across releases. Old
+hashed assets are harmless and can be cleaned up after the new release is live.
+
 ## Domain map
 
 - `organicemperor.com`: built Vue storefront (`frontend/dist`)
