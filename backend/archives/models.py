@@ -98,7 +98,14 @@ class PostBlock(models.Model):
     post = models.ForeignKey(Post, related_name="blocks", on_delete=models.CASCADE)
     position = models.PositiveIntegerField(default=0, help_text="Sections appear in ascending order.")
     kind = models.CharField(max_length=12, choices=Kind.choices, default=Kind.TEXT)
-    text = models.TextField(blank=True, help_text="Plain text, heading, or quote. Blank lines separate paragraphs; HTML is not rendered.")
+    text = models.TextField(
+        blank=True,
+        help_text=(
+            "Text sections support Markdown for links, emphasis, lists, headings, "
+            "quotes, and code. Raw HTML is shown as text and scripts never run. "
+            "Heading and quote sections remain plain text."
+        ),
+    )
     image = models.ImageField(upload_to="archives/images/%Y/%m/", blank=True)
     alt_text = models.CharField(max_length=250, blank=True)
     video = models.FileField(upload_to="archives/videos/%Y/%m/", blank=True,

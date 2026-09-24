@@ -17,6 +17,7 @@ import {
   type PostEngagement,
 } from "./readerApi"
 import { useArchiveReaderStore } from "./readerStore"
+import { renderMarkdown } from "./markdown"
 
 const route = useRoute()
 const reader = useArchiveReaderStore()
@@ -205,13 +206,10 @@ onUnmounted(() => controller?.abort())
       </figure>
       <div class="reader-body">
         <template v-for="block in post.blocks" :key="block.id">
-          <div v-if="block.kind === 'text'" class="text-block">
-            <p
-              v-for="(paragraph, index) in block.text.split(/\n\s*\n/)"
-              :key="index">
-              {{ paragraph }}
-            </p>
-          </div>
+          <div
+            v-if="block.kind === 'text'"
+            class="text-block markdown-block"
+            v-html="renderMarkdown(block.text)" />
           <h2 v-else-if="block.kind === 'heading'">{{ block.text }}</h2>
           <figure v-else-if="block.kind === 'quote'" class="quote-block">
             <blockquote>{{ block.text }}</blockquote>
