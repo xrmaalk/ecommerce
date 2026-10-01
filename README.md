@@ -51,8 +51,11 @@ This runs a shared type check, rebuilds both Vite applications, and atomically
 replaces `dist.zip` and `dist-archives.zip`. Each archive contains the contents
 of its corresponding distribution directory at the ZIP root, including the
 required `.htaccess` and `index.html`, ready to extract directly into its web
-document root. Use `--skip-build` only when the existing distribution folders
-are already current.
+document root. Both sites are rebuilt on every run; the deprecated `--skip-build`
+option is accepted for compatibility but no longer skips the build. Packaging
+fails if a generated `index.html` references a local resource missing from its
+distribution or ZIP. The ZIP preserves the new build timestamp for `index.html`
+so update-only extraction tools can recognize the refreshed entry document.
 
 During deployment, extract over the current document root without deleting the
 old `assets/` directory first. The packager places `index.html` last in each ZIP,

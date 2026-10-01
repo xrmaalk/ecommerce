@@ -20,6 +20,8 @@ const product: Product = {
 }
 let app: App
 let container: HTMLDivElement
+const originalShowModal = Object.getOwnPropertyDescriptor(HTMLDialogElement.prototype, "showModal")
+const originalClose = Object.getOwnPropertyDescriptor(HTMLDialogElement.prototype, "close")
 async function flush() { await Promise.resolve(); await Promise.resolve(); await nextTick() }
 function mount() {
   container = document.createElement("div")
@@ -30,11 +32,69 @@ function mount() {
 }
 beforeEach(() => {
   vi.clearAllMocks()
+  // jsdom does not implement native modal dialog behavior.
+  Object.defineProperty(HTMLDialogElement.prototype, "showModal", { configurable: true, value: function (this: HTMLDialogElement) {
+    this.setAttribute("open", "")
+  } })
+  Object.defineProperty(HTMLDialogElement.prototype, "close", { configurable: true, value: function (this: HTMLDialogElement) {
+    if (!this.open) return
+    this.removeAttribute("open")
+    this.dispatchEvent(new Event("close"))
+  } })
   mocks.route = reactive({ params: { slug: "body-oil" } })
 })
-afterEach(() => { app?.unmount(); container?.remove() })
+afterEach(() => {
+  app?.unmount(); container?.remove(); vi.restoreAllMocks()
+  for (const [name, descriptor] of [["showModal", originalShowModal], ["close", originalClose]] as const) {
+    if (descriptor) Object.defineProperty(HTMLDialogElement.prototype, name, descriptor)
+    else Reflect.deleteProperty(HTMLDialogElement.prototype, name)
+  }
+})
 
 describe("Product detail page", () => {
+  it("opens the selected image in a modal, navigates photos, and restores focus on close", async () => {
+    mocks.get.mockResolvedValue({ data: product })
+    mount()
+    await flush()
+    container.querySelectorAll<HTMLButtonElement>(".product-gallery__thumbnails button")[1]!.click()
+    await nextTick()
+    const trigger = container.querySelector<HTMLButtonElement>(".product-gallery__expand")!
+    trigger.focus()
+    trigger.click()
+    await nextTick()
+    const dialog = document.querySelector<HTMLDialogElement>(".product-image-viewer")!
+    expect(dialog.open).toBe(true)
+    expect(dialog.querySelector("img")?.getAttribute("src")).toBe("/oil-back.png")
+    expect(document.body.classList.contains("product-image-viewer-open")).toBe(true)
+    dialog.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }))
+    await nextTick()
+    expect(dialog.querySelector("img")?.getAttribute("src")).toBe("/oil-front.png")
+    dialog.querySelector<HTMLButtonElement>('[aria-label="Previous product image"]')!.click()
+    await nextTick()
+    expect(dialog.querySelector("img")?.getAttribute("src")).toBe("/oil-back.png")
+    dialog.querySelector<HTMLButtonElement>('[aria-label="Close full image viewer"]')!.click()
+    expect(dialog.open).toBe(false)
+    expect(document.activeElement).toBe(trigger)
+    expect(document.body.classList.contains("product-image-viewer-open")).toBe(false)
+  })
+
+  it("closes on native Escape cancellation and clears modal state when changing products", async () => {
+    mocks.get.mockResolvedValue({ data: product })
+    mount()
+    await flush()
+    const trigger = container.querySelector<HTMLButtonElement>(".product-gallery__expand")!
+    trigger.click()
+    const dialog = document.querySelector<HTMLDialogElement>(".product-image-viewer")!
+    dialog.dispatchEvent(new Event("cancel", { cancelable: true }))
+    expect(dialog.open).toBe(false)
+    trigger.click()
+    expect(dialog.open).toBe(true)
+    mocks.get.mockResolvedValue({ data: { ...product, slug: "tea", name: "Tea" } })
+    mocks.route.params.slug = "tea"
+    await flush()
+    expect(document.body.classList.contains("product-image-viewer-open")).toBe(false)
+    expect(document.querySelector<HTMLDialogElement>(".product-image-viewer")!.open).toBe(false)
+  })
   it("requires a variation, updates its price and SKU, and passes the chosen combination to the bag", async () => {
     const variant: ProductVariant = { id: 10, sku: "LARGE-RED", size: "Large", color: "Red", label: "", name: "Size: Large / Color: Red", price_cad: "30.00", inventory_quantity: 2, track_inventory: true, in_stock: true }
     const soldOut = { ...variant, id: 11, sku: "SMALL-RED", size: "Small", in_stock: false, name: "Size: Small / Color: Red" }

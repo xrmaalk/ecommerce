@@ -13,7 +13,10 @@ import sys
 import tempfile
 import zipfile
 from dataclasses import dataclass
+from datetime import datetime
+from html.parser import HTMLParser
 from pathlib import Path
+from urllib.parse import unquote, urlsplit
 
 
 FIXED_ZIP_TIME = (1980, 1, 1, 0, 0, 0)
@@ -80,7 +83,58 @@ def distribution_files(source: Path) -> list[Path]:
             raise PackagingError(
                 f"Distribution file resolves outside {source}: {path}"
             ) from exc
+    validate_index((source / "index.html").read_bytes(), relative_names, source.name)
     return files
+
+
+class IndexResources(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.resources: list[str] = []
+        self.module_scripts: list[str] = []
+
+    def handle_starttag(self, tag, attrs):
+        attributes = dict(attrs)
+        if tag in ("script", "img", "source", "video", "audio"):
+            url = attributes.get("src")
+            if url:
+                self.resources.append(url)
+                if tag == "script" and attributes.get("type") == "module":
+                    self.module_scripts.append(url)
+        if tag == "link" and set((attributes.get("rel") or "").split()) & {
+            "stylesheet", "modulepreload", "preload", "icon", "apple-touch-icon",
+        }:
+            if attributes.get("href"):
+                self.resources.append(attributes["href"])
+
+
+def local_resource_name(url: str) -> str | None:
+    parsed = urlsplit(url)
+    if parsed.scheme or parsed.netloc:
+        return None
+    path = unquote(parsed.path).removeprefix("/")
+    if not path:
+        return None
+    if "\\" in path or any(part in (".", "..") for part in path.split("/")):
+        raise PackagingError(f"Unsafe resource path in index.html: {url}")
+    return path
+
+
+def validate_index(content: bytes, available_files: set[str], label: str) -> None:
+    """Validate Vite's generated document; never substitute a saved asset hash."""
+    try:
+        html = content.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise PackagingError(f"{label}: index.html is not valid UTF-8.") from error
+    parser = IndexResources()
+    parser.feed(html)
+    modules = [local_resource_name(url) for url in parser.module_scripts]
+    if not any(name and name.startswith("assets/") and name.endswith(".js") for name in modules):
+        raise PackagingError(f"{label}: index.html does not reference a built Vite entry script.")
+    for url in parser.resources:
+        name = local_resource_name(url)
+        if name is not None and name not in available_files:
+            raise PackagingError(f"{label}: index.html references missing file {url}.")
 
 
 def prepare_archive(source: Path, output: Path, files: list[Path]) -> Path:
@@ -101,7 +155,13 @@ def prepare_archive(source: Path, output: Path, files: list[Path]) -> Path:
         ) as archive:
             for file_path in files:
                 relative_path = file_path.relative_to(source).as_posix()
-                info = zipfile.ZipInfo(relative_path, FIXED_ZIP_TIME)
+                # Update-only ZIP extractors must see the rebuilt entry document
+                # as new. A fixed 1980 timestamp can leave an old index deployed.
+                timestamp = (
+                    datetime.fromtimestamp(file_path.stat().st_mtime).timetuple()[:6]
+                    if relative_path == "index.html" else FIXED_ZIP_TIME
+                )
+                info = zipfile.ZipInfo(relative_path, timestamp)
                 info.compress_type = zipfile.ZIP_DEFLATED
                 info.create_system = 3
                 info.external_attr = stat.S_IMODE(file_path.stat().st_mode) << 16
@@ -118,6 +178,10 @@ def prepare_archive(source: Path, output: Path, files: list[Path]) -> Path:
                 raise PackagingError(
                     f"Archive validation failed for {output.name} at {bad_member}."
                 )
+            validate_index(archive.read("index.html"), set(archive.namelist()), output.name)
+            for required_name in ("index.html", ".htaccess"):
+                if archive.read(required_name) != (source / required_name).read_bytes():
+                    raise PackagingError(f"{output.name}: {required_name} changed during packaging.")
         return temporary_path
     except Exception:
         temporary_path.unlink(missing_ok=True)
@@ -142,7 +206,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--skip-build",
         action="store_true",
-        help="Package the existing dist directories without rebuilding them.",
+        help="Deprecated: accepted for compatibility, but a fresh build always runs.",
     )
     return parser.parse_args()
 
@@ -152,8 +216,9 @@ def main() -> int:
     prepared: list[tuple[Distribution, Path, Path, list[Path]]] = []
     try:
         repository = repository_root(Path(__file__))
-        if not arguments.skip_build:
-            run_frontend_build(repository)
+        if arguments.skip_build:
+            print("warning: --skip-build is ignored; both frontends are always rebuilt.", file=sys.stderr)
+        run_frontend_build(repository)
 
         frontend = repository / "frontend"
         for distribution in DISTRIBUTIONS:
