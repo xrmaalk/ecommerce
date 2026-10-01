@@ -2,7 +2,7 @@
   <section class="hero-section" aria-labelledby="hero-title">
     <div class="hero-copy">
       <p class="eyebrow">Daily Routine; Refined.</p>
-      <h1 id="hero-title">Forever Skincare</h1>
+      <h1 id="hero-title">Forever Wellness</h1>
       <p class="hero-lede">
         Quality body care, must have shave essentials and comforting organic
         teas and soaps.
@@ -23,8 +23,8 @@
       aria-label="OrganicEmperor.com Daily Moisture collection">
       <span class="hero-art__halo" aria-hidden="true"></span>
       <div class="hero-bottle">
-        <img src="/organic-emperor-emblem.png" alt="" />
-        <b>BODIGLO</b><strong>DAILY<br />MOISTURIZER</strong
+        <img src="/organic-emperor-emblem.png" alt="OrganicEmperor Emblem" />
+        <b>BODIGLO</b><strong>DAILY<br />Dose of Wellness</strong
         ><small>Get theGlow. </small>
       </div>
     </div>
