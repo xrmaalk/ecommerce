@@ -14,8 +14,8 @@ const bag = useBagStore()
     <EmptyBag v-if="bag.isEmpty" />
     <div v-else class="bag-layout">
       <div class="bag-list">
-        <BagLineItem v-for="item in bag.items" :key="item.id" :item="item"
-          @increase="bag.increment(item.id)" @decrease="bag.decrement(item.id)" @remove="bag.remove(item.id)" />
+        <BagLineItem v-for="item in bag.items" :key="item.key" :item="item"
+          @increase="bag.increment(item.key)" @decrease="bag.decrement(item.key)" @remove="bag.remove(item.key)" />
       </div>
       <BagSummary :subtotal="bag.subtotal" :item-count="bag.itemCount" />
     </div>

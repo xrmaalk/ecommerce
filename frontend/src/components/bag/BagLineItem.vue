@@ -6,7 +6,7 @@ import QuantityStepper from "./QuantityStepper.vue"
 
 const props = defineProps<{ item: BagItem; compact?: boolean }>()
 defineEmits<{ increase: []; decrease: []; remove: [] }>()
-const atLimit = computed(() => props.item.inventoryQuantity > 0 && props.item.quantity >= props.item.inventoryQuantity)
+const atLimit = computed(() => props.item.quantity >= 99 || (props.item.trackInventory && props.item.quantity >= props.item.inventoryQuantity))
 </script>
 
 <template>
@@ -16,7 +16,7 @@ const atLimit = computed(() => props.item.inventoryQuantity > 0 && props.item.qu
       <img v-else src="/organic-emperor-emblem.png" alt="" />
     </div>
     <div class="bag-line__details">
-      <div><h3>{{ item.name }}</h3><p>{{ formatCad(item.price) }} <small>CAD</small></p></div>
+      <div><h3>{{ item.name }}</h3><p v-if="item.variation">{{ item.variation }}</p><p>{{ formatCad(item.price) }} <small>CAD</small></p></div>
       <div class="bag-line__actions">
         <QuantityStepper :name="item.name" :quantity="item.quantity" :disable-increase="atLimit"
           @decrease="$emit('decrease')" @increase="$emit('increase')" />

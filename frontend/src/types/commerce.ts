@@ -1,7 +1,8 @@
-import type { Product } from "./catalog"
+import type { Product, ProductVariant } from "./catalog"
 
 export interface ServerCartItem {
   product: Product
+  variant: ProductVariant | null
   quantity: number
   unit_price_cad: string
   line_total_cad: string
@@ -38,6 +39,8 @@ export interface ShippingAddress {
 }
 
 export interface CheckoutLineItem {
+  variant_id?: number | null
+  variation?: string
   product_id: number
   sku: string
   name: string
@@ -69,6 +72,7 @@ export interface CheckoutConfig {
 }
 
 export interface OrderItem {
+  variation?: string
   sku: string
   name: string
   quantity: number

@@ -48,6 +48,8 @@
 [data-theme="dark"] .featured-flame { border-color: rgba(239, 212, 119, 0.7); background: rgba(8, 29, 22, 0.9); }
 [data-theme="dark"] .product-card__content footer button { color: #fff; background: var(--green-600); }
 [data-theme="dark"] .product-card__content footer button:hover:not(:disabled) { background: #4f866b; }
+[data-theme="dark"] .product-card__choose { color: white; background: var(--green-600); }
+[data-theme="dark"] .product-card__choose:hover { background: #4f866b; }
 
 [data-theme="dark"] .bag-drawer { color: var(--ink); background: #081d16; }
 [data-theme="dark"] .bag-drawer > footer { background: #0f2a20; }

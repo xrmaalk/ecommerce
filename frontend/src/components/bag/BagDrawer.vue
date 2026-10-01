@@ -41,8 +41,8 @@ onBeforeUnmount(() => document.body.classList.remove("drawer-open"))
         <aside ref="dialog" class="bag-drawer" role="dialog" aria-modal="true" aria-labelledby="bag-drawer-title">
           <header><div><small>Your selections</small><h2 id="bag-drawer-title">Shopping bag</h2></div><button type="button" class="close-button" aria-label="Close shopping bag" @click="close">×</button></header>
           <div v-if="!bag.isEmpty" class="bag-drawer__items">
-            <BagLineItem v-for="item in bag.items" :key="item.id" :item="item" compact
-              @increase="bag.increment(item.id)" @decrease="bag.decrement(item.id)" @remove="bag.remove(item.id)" />
+            <BagLineItem v-for="item in bag.items" :key="item.key" :item="item" compact
+              @increase="bag.increment(item.key)" @decrease="bag.decrement(item.key)" @remove="bag.remove(item.key)" />
           </div>
           <EmptyBag v-else drawer @continue="close" />
           <footer v-if="!bag.isEmpty">

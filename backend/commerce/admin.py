@@ -37,7 +37,7 @@ class OrderItemInline(admin.TabularInline):
     model = OrderItem
     extra = 0
     can_delete = False
-    readonly_fields = ("product", "sku", "name", "quantity", "unit_price_cad", "line_total_cad")
+    readonly_fields = ("product", "sku", "name", "variation", "quantity", "unit_price_cad", "line_total_cad")
 
 
 @admin.register(Order)

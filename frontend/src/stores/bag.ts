@@ -3,11 +3,12 @@ import { defineStore } from "pinia"
 import { api, getApiErrorMessage } from "../api/client"
 import { useAuthStore } from "./auth"
 import type { BagItem } from "../types/bag"
-import type { Product } from "../types/catalog"
+import type { Product, ProductVariant } from "../types/catalog"
 import type { ServerCart } from "../types/commerce"
 
 const STORAGE_KEY = "organic-emperor-bag-v2"
 const MAX_QUANTITY = 99
+const itemKey = (productId: number, variantId: number | null = null) => `${productId}:${variantId ?? 'base'}`
 
 function isStoredItem(value: unknown): value is BagItem {
   if (!value || typeof value !== "object") return false
@@ -15,7 +16,8 @@ function isStoredItem(value: unknown): value is BagItem {
   return Number.isInteger(item.id) && typeof item.name === "string" &&
     typeof item.slug === "string" && Number.isFinite(item.price) &&
     typeof item.image === "string" && typeof item.imageAlt === "string" &&
-    Number.isInteger(item.quantity) && Number.isInteger(item.inventoryQuantity)
+    Number.isInteger(item.quantity) && Number.isInteger(item.inventoryQuantity) &&
+    (item.variantId === undefined || item.variantId === null || (Number.isInteger(item.variantId) && item.variantId > 0))
 }
 
 export const useBagStore = defineStore("bag", () => {
@@ -25,7 +27,11 @@ export const useBagStore = defineStore("bag", () => {
   const statusMessage = ref("")
   const syncError = ref("")
   const isSyncing = ref(false)
-  const pendingSyncs = new Map<number, number>()
+  const pendingSyncs = new Map<string, { timer: number; send: () => void }>()
+  let syncQueue: Promise<void> = Promise.resolve()
+  let revision = 0
+  let queuedWrites = 0
+  const writeErrors = new Map<string, string>()
   const itemCount = computed(() => items.value.reduce((total, item) => total + item.quantity, 0))
   const subtotal = computed(() => items.value.reduce((total, item) => total + item.price * item.quantity, 0))
   const isEmpty = computed(() => items.value.length === 0)
@@ -43,6 +49,10 @@ export const useBagStore = defineStore("bag", () => {
       if (Array.isArray(parsed)) {
         items.value = parsed.filter(isStoredItem).map((item) => ({
           ...item,
+          key: itemKey(item.id, item.variantId ?? null),
+          variantId: item.variantId ?? null,
+          variation: typeof item.variation === "string" ? item.variation : "",
+          trackInventory: typeof item.trackInventory === "boolean" ? item.trackInventory : item.inventoryQuantity > 0,
           quantity: Math.max(1, Math.min(MAX_QUANTITY, item.quantity)),
           price: Math.max(0, item.price),
           inventoryQuantity: Math.max(0, item.inventoryQuantity),
@@ -52,89 +62,121 @@ export const useBagStore = defineStore("bag", () => {
     finally { hasRestored.value = true }
   }
 
-  function add(product: Product) {
-    const existing = items.value.find((item) => item.id === product.id)
-    const stockLimit = product.inventory_quantity > 0 ? product.inventory_quantity : MAX_QUANTITY
+  function add(product: Product, variant?: ProductVariant) {
+    if (!product.in_stock || (product.has_variants && !variant)) return
+    if (variant && (!variant.in_stock || !product.variants?.some((entry) => entry.id === variant.id))) return
+    const stock = variant ?? product
+    const trackInventory = stock.track_inventory ?? stock.inventory_quantity > 0
+    const stockLimit = trackInventory ? stock.inventory_quantity : MAX_QUANTITY
+    if (stockLimit < 1) return
+    const key = itemKey(product.id, variant?.id)
+    const existing = items.value.find((item) => item.key === key)
     if (existing) existing.quantity = Math.min(existing.quantity + 1, stockLimit, MAX_QUANTITY)
     else items.value.push({
       id: product.id, name: product.name, slug: product.slug,
-      price: Math.max(0, Number(product.price_cad) || 0),
+      key, variantId: variant?.id ?? null, variation: variant?.name ?? "", trackInventory,
+      price: Math.max(0, Number(stock.price_cad) || 0),
       image: product.images[0]?.image ?? "", imageAlt: product.images[0]?.alt_text || product.name,
-      quantity: 1, inventoryQuantity: product.inventory_quantity,
+      quantity: 1, inventoryQuantity: stock.inventory_quantity,
     })
-    statusMessage.value = `${product.name} added to your bag.`
-    const item = items.value.find((entry) => entry.id === product.id)
-    if (item) scheduleServerSync(item.id, item.quantity)
+    statusMessage.value = `${product.name}${variant ? ` (${variant.name})` : ''} added to your bag.`
+    const item = items.value.find((entry) => entry.key === key)
+    if (item) scheduleServerSync(item.id, item.quantity, item.variantId)
   }
 
-  function setQuantity(id: number, quantity: number) {
-    const item = items.value.find((entry) => entry.id === id)
+  function setQuantity(key: string, quantity: number) {
+    const item = items.value.find((entry) => entry.key === key)
     if (!item) return
-    if (quantity < 1) return remove(id)
-    const stockLimit = item.inventoryQuantity > 0 ? item.inventoryQuantity : MAX_QUANTITY
+    if (quantity < 1) return remove(key)
+    const stockLimit = item.trackInventory ? item.inventoryQuantity : MAX_QUANTITY
+    if (stockLimit < 1) return remove(key)
     item.quantity = Math.min(Math.floor(quantity), stockLimit, MAX_QUANTITY)
     statusMessage.value = `${item.name} quantity updated to ${item.quantity}.`
-    scheduleServerSync(item.id, item.quantity)
+    scheduleServerSync(item.id, item.quantity, item.variantId)
   }
 
-  function increment(id: number) {
-    const item = items.value.find((entry) => entry.id === id)
-    if (item) setQuantity(id, item.quantity + 1)
+  function increment(key: string) {
+    const item = items.value.find((entry) => entry.key === key)
+    if (item) setQuantity(key, item.quantity + 1)
   }
-  function decrement(id: number) {
-    const item = items.value.find((entry) => entry.id === id)
-    if (item) setQuantity(id, item.quantity - 1)
+  function decrement(key: string) {
+    const item = items.value.find((entry) => entry.key === key)
+    if (item) setQuantity(key, item.quantity - 1)
   }
-  function remove(id: number) {
-    const item = items.value.find((entry) => entry.id === id)
-    items.value = items.value.filter((entry) => entry.id !== id)
+  function remove(key: string) {
+    const item = items.value.find((entry) => entry.key === key)
+    items.value = items.value.filter((entry) => entry.key !== key)
     if (item) statusMessage.value = `${item.name} removed from your bag.`
-    scheduleServerSync(id, 0)
+    if (item) scheduleServerSync(item.id, 0, item.variantId)
   }
 
   function applyServerCart(cart: ServerCart) {
-    items.value = cart.items.map(({ product, quantity }) => ({
+    items.value = cart.items.map(({ product, variant, quantity, unit_price_cad }) => ({
       id: product.id,
+      key: itemKey(product.id, variant?.id), variantId: variant?.id ?? null,
+      variation: variant?.name ?? "",
+      trackInventory: (variant ?? product).track_inventory ?? product.inventory_quantity > 0,
       name: product.name,
       slug: product.slug,
-      price: Math.max(0, Number(product.price_cad) || 0),
+      price: Math.max(0, Number(unit_price_cad) || 0),
       image: product.images[0]?.image ?? "",
       imageAlt: product.images[0]?.alt_text || product.name,
       quantity,
-      inventoryQuantity: product.inventory_quantity,
+      inventoryQuantity: (variant ?? product).inventory_quantity,
     }))
   }
 
-  function scheduleServerSync(productId: number, quantity: number) {
+  function scheduleServerSync(productId: number, quantity: number, variantId: number | null) {
     if (!useAuthStore().isAuthenticated) return
-    const pending = pendingSyncs.get(productId)
-    if (pending) window.clearTimeout(pending)
-    pendingSyncs.set(productId, window.setTimeout(async () => {
-      pendingSyncs.delete(productId)
-      try {
-        const response = await api.put<ServerCart>("/commerce/cart/items/", {
-          product_id: productId,
-          quantity,
-        })
-        applyServerCart(response.data)
-        syncError.value = ""
-      } catch (error) {
-        syncError.value = getApiErrorMessage(error)
-      }
-    }, 350))
+    const key = itemKey(productId, variantId)
+    const pending = pendingSyncs.get(key)
+    if (pending) window.clearTimeout(pending.timer)
+    ++revision
+    const send = () => {
+      pendingSyncs.delete(key)
+      ++queuedWrites
+      syncQueue = syncQueue.then(async () => {
+        try {
+          const response = await api.put<ServerCart>("/commerce/cart/items/", {
+            product_id: productId, variant_id: variantId, quantity,
+          })
+          writeErrors.delete(key)
+          if (queuedWrites === 1 && !pendingSyncs.size && !writeErrors.size) applyServerCart(response.data)
+          syncError.value = [...writeErrors.values()][0] ?? ""
+        } catch (error) {
+          writeErrors.set(key, getApiErrorMessage(error))
+          syncError.value = [...writeErrors.values()][0] ?? ""
+        } finally {
+          --queuedWrites
+        }
+      })
+    }
+    pendingSyncs.set(key, { timer: window.setTimeout(send, 350), send })
+  }
+
+  async function flushSync() {
+    for (const pending of [...pendingSyncs.values()]) {
+      window.clearTimeout(pending.timer)
+      pending.send()
+    }
+    await syncQueue
+    if (syncError.value) throw new Error(syncError.value)
   }
 
   async function mergeWithServer() {
     if (!useAuthStore().isAuthenticated || isSyncing.value) return
     isSyncing.value = true
     syncError.value = ""
+    const mergeRevision = revision
+    const localItems = items.value.map((item) => ({ product_id: item.id, variant_id: item.variantId, quantity: item.quantity }))
     try {
-      const response = await api.post<ServerCart>("/commerce/cart/merge/", {
-        items: items.value.map((item) => ({ product_id: item.id, quantity: item.quantity })),
+      syncQueue = syncQueue.then(async () => {
+        const response = await api.post<ServerCart>("/commerce/cart/merge/", { items: localItems })
+        if (mergeRevision === revision) applyServerCart(response.data)
+      }).catch((error) => {
+        syncError.value = getApiErrorMessage(error)
       })
-      applyServerCart(response.data)
-    } catch (error) {
-      syncError.value = getApiErrorMessage(error)
+      await syncQueue
     } finally {
       isSyncing.value = false
     }
@@ -147,7 +189,7 @@ export const useBagStore = defineStore("bag", () => {
 
   return {
     items, isOpen, statusMessage, syncError, isSyncing, itemCount, subtotal, isEmpty,
-    restore, add, setQuantity, increment, decrement, remove, mergeWithServer, clearAfterOrder,
+    restore, add, setQuantity, increment, decrement, remove, mergeWithServer, clearAfterOrder, flushSync,
     open: () => { isOpen.value = true }, close: () => { isOpen.value = false },
   }
 })

@@ -3,7 +3,7 @@ from decimal import Decimal, ROUND_HALF_UP
 from django.db import transaction
 from django.utils import timezone
 
-from catalog.models import Product
+from catalog.models import Product, ProductVariant
 
 from .models import Cart, CartItem, CheckoutSession, Order, OrderItem, ShippingRate
 from .paypal import PayPalClient, PayPalError
@@ -34,21 +34,34 @@ def get_active_cart(user):
 
 
 def cart_queryset():
-    return Cart.objects.prefetch_related("items__product__images", "items__product__category")
+    return Cart.objects.prefetch_related("items__product__images", "items__product__category", "items__product__variants", "items__variant__product")
 
 
-def set_cart_item(user, product, quantity):
+def resolve_variant(product, variant_id):
+    if variant_id is not None:
+        variant = product.variants.filter(pk=variant_id, is_active=True).first()
+        if not variant:
+            raise CommerceError("This variation is not available for this product.")
+        return variant
+    if product.variants.exists():
+        raise CommerceError(f"Please select a variation for {product.name}.")
+    return None
+
+
+def set_cart_item(user, product, quantity, variant_id=None):
     cart = get_active_cart(user)
     if quantity <= 0:
-        CartItem.objects.filter(cart=cart, product=product).delete()
+        CartItem.objects.filter(cart=cart, product=product, variant_id=variant_id).delete()
         return cart_queryset().get(pk=cart.pk)
     if not product.is_active:
         raise CommerceError("This product is not available.")
-    maximum = product.inventory_quantity if product.track_inventory else 99
-    if product.track_inventory and maximum < 1:
+    variant = resolve_variant(product, variant_id)
+    stock = variant or product
+    maximum = stock.inventory_quantity if stock.track_inventory else 99
+    if maximum < 1:
         raise InventoryError(f"{product.name} is out of stock.")
     quantity = min(int(quantity), maximum, 99)
-    CartItem.objects.update_or_create(cart=cart, product=product, defaults={"quantity": quantity})
+    CartItem.objects.update_or_create(cart=cart, product=product, variant=variant, defaults={"quantity": quantity})
     return cart_queryset().get(pk=cart.pk)
 
 
@@ -57,37 +70,44 @@ def merge_cart(user, items):
     cart = get_active_cart(user)
     products = Product.objects.filter(id__in=[item["product_id"] for item in items], is_active=True)
     product_map = {product.id: product for product in products}
-    existing = {item.product_id: item for item in cart.items.select_for_update()}
+    existing = {(item.product_id, item.variant_id): item for item in cart.items.select_for_update()}
     for incoming in items:
         product = product_map.get(incoming["product_id"])
         if not product:
             continue
-        maximum = product.inventory_quantity if product.track_inventory else 99
+        variant = resolve_variant(product, incoming.get("variant_id"))
+        stock = variant or product
+        maximum = stock.inventory_quantity if stock.track_inventory else 99
         if maximum < 1:
             continue
-        quantity = min(max(incoming["quantity"], existing.get(product.id).quantity if product.id in existing else 0), maximum, 99)
-        CartItem.objects.update_or_create(cart=cart, product=product, defaults={"quantity": quantity})
+        key = (product.id, incoming.get("variant_id"))
+        quantity = min(max(incoming["quantity"], existing[key].quantity if key in existing else 0), maximum, 99)
+        CartItem.objects.update_or_create(cart=cart, product=product, variant=variant, defaults={"quantity": quantity})
     return cart_queryset().get(pk=cart.pk)
 
 
 def snapshot_cart(cart):
     items = []
     subtotal = Decimal("0.00")
-    cart_items = cart.items.select_related("product").order_by("id")
+    cart_items = cart.items.select_related("product", "variant__product").order_by("id")
     if not cart_items.exists():
         raise CommerceError("Your cart is empty.")
     for cart_item in cart_items:
         product = cart_item.product
         if not product.is_active:
             raise CommerceError(f"{product.name} is no longer available.")
-        if product.track_inventory and cart_item.quantity > product.inventory_quantity:
-            raise InventoryError(f"Only {product.inventory_quantity} of {product.name} remain in stock.")
-        unit_price = money(product.price_cad)
+        variant = resolve_variant(product, cart_item.variant_id)
+        stock = variant or product
+        if stock.track_inventory and cart_item.quantity > stock.inventory_quantity:
+            raise InventoryError(f"Only {stock.inventory_quantity} of {product.name} remain in stock.")
+        unit_price = money(cart_item.unit_price_cad)
         line_total = money(unit_price * cart_item.quantity)
         subtotal += line_total
         items.append({
             "product_id": product.id,
-            "sku": product.sku,
+            "variant_id": cart_item.variant_id,
+            "variation": variant.name if variant else "",
+            "sku": variant.sku if variant else product.sku,
             "name": product.name,
             "quantity": cart_item.quantity,
             "unit_price_cad": money_string(unit_price),
@@ -155,7 +175,7 @@ def paypal_order_payload(session):
         },
     }
     items = [{
-        "name": item["name"][:127],
+        "name": (item["name"] + (f" — {item['variation']}" if item.get("variation") else ""))[:127],
         "sku": item["sku"][:127],
         "quantity": str(item["quantity"]),
         "unit_amount": {"currency_code": "CAD", "value": item["unit_price_cad"]},
@@ -196,20 +216,7 @@ def reserve_inventory(session_id):
     session = CheckoutSession.objects.select_for_update().get(pk=session_id)
     if session.inventory_reserved_at:
         return session
-    product_ids = [item["product_id"] for item in session.line_items]
-    products = Product.objects.select_for_update().filter(id__in=product_ids)
-    product_map = {product.id: product for product in products}
-    for item in session.line_items:
-        product = product_map.get(item["product_id"])
-        if not product or not product.is_active:
-            raise InventoryError(f"{item['name']} is no longer available.")
-        if product.track_inventory and product.inventory_quantity < item["quantity"]:
-            raise InventoryError(f"Only {product.inventory_quantity} of {product.name} remain in stock.")
-    for item in session.line_items:
-        product = product_map[item["product_id"]]
-        if product.track_inventory:
-            product.inventory_quantity -= item["quantity"]
-            product.save(update_fields=("inventory_quantity", "updated_at"))
+    change_snapshot_inventory(session.line_items, reserve=True)
     session.inventory_reserved_at = timezone.now()
     session.save(update_fields=("inventory_reserved_at", "updated_at"))
     return session
@@ -220,18 +227,37 @@ def release_inventory_reservation(session_id):
     session = CheckoutSession.objects.select_for_update().get(pk=session_id)
     if not session.inventory_reserved_at or session.status == CheckoutSession.Status.COMPLETED:
         return session
-    product_ids = [item["product_id"] for item in session.line_items]
-    products = Product.objects.select_for_update().filter(id__in=product_ids)
-    product_map = {product.id: product for product in products}
-    for item in session.line_items:
-        product = product_map.get(item["product_id"])
-        if product and product.track_inventory:
-            product.inventory_quantity += item["quantity"]
-            product.save(update_fields=("inventory_quantity", "updated_at"))
+    change_snapshot_inventory(session.line_items, reserve=False)
     session.inventory_reserved_at = None
     session.status = CheckoutSession.Status.EXPIRED
     session.save(update_fields=("inventory_reserved_at", "status", "updated_at"))
     return session
+
+
+def change_snapshot_inventory(line_items, *, reserve):
+    """Called inside a transaction; lock stock rows and account for each combination."""
+    products = {product.id: product for product in Product.objects.select_for_update().filter(
+        id__in=[item["product_id"] for item in line_items]).order_by("id")}
+    variants = {variant.id: variant for variant in ProductVariant.objects.select_for_update().filter(
+        id__in=[item["variant_id"] for item in line_items if item.get("variant_id")]).order_by("id")}
+    for item in line_items:
+        product = products.get(item["product_id"])
+        variant = variants.get(item.get("variant_id"))
+        stock = variant if item.get("variant_id") else product
+        if reserve:
+            if not product or not product.is_active or not stock:
+                raise InventoryError(f"{item['name']} is no longer available.")
+            if variant and (variant.product_id != product.id or not variant.is_active):
+                raise InventoryError("The selected variation is no longer available.")
+            if not variant and product.variants.exists():
+                raise InventoryError("Please select a variation and calculate a new total.")
+            if stock.track_inventory and stock.inventory_quantity < item["quantity"]:
+                raise InventoryError(f"Only {stock.inventory_quantity} of {item['name']} remain in stock.")
+        if stock and stock.track_inventory:
+            stock.inventory_quantity += -item["quantity"] if reserve else item["quantity"]
+            fields = ("inventory_quantity", "updated_at") if isinstance(stock, Product) else ("inventory_quantity",)
+            stock.save(update_fields=fields)
+    return products
 
 
 def create_paypal_order(session, client=None):
@@ -283,18 +309,11 @@ def complete_checkout(session_id, *, capture_id, amount_value, currency_code, pa
     if currency_code != "CAD" or money(amount_value) != money(session.total_cad):
         raise CommerceError("The captured PayPal amount does not match the checkout total.")
 
-    product_ids = [item["product_id"] for item in session.line_items]
-    products = Product.objects.select_for_update().filter(id__in=product_ids)
-    product_map = {product.id: product for product in products}
-    for item in session.line_items:
-        product = product_map.get(item["product_id"])
-        if not product:
-            raise InventoryError(f"{item['name']} is no longer available.")
-        if product.track_inventory and not session.inventory_reserved_at:
-            if product.inventory_quantity < item["quantity"]:
-                raise InventoryError(f"Only {product.inventory_quantity} of {product.name} remain in stock.")
-            product.inventory_quantity -= item["quantity"]
-            product.save(update_fields=("inventory_quantity", "updated_at"))
+    if not session.inventory_reserved_at:
+        product_map = change_snapshot_inventory(session.line_items, reserve=True)
+    else:
+        product_map = {product.id: product for product in Product.objects.filter(
+            id__in=[item["product_id"] for item in session.line_items])}
 
     order = Order.objects.create(
         user=session.user,
@@ -315,6 +334,7 @@ def complete_checkout(session_id, *, capture_id, amount_value, currency_code, pa
             product=product_map.get(item["product_id"]),
             sku=item["sku"],
             name=item["name"],
+            variation=item.get("variation", ""),
             quantity=item["quantity"],
             unit_price_cad=item["unit_price_cad"],
             line_total_cad=item["line_total_cad"],

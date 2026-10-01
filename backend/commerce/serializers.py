@@ -3,22 +3,23 @@ from decimal import Decimal
 from rest_framework import serializers
 
 from catalog.models import Product
-from catalog.serializers import ProductSerializer
+from catalog.serializers import ProductSerializer, ProductVariantSerializer
 
 from .models import Cart, CheckoutSession, Order, OrderItem, ShippingRate
 
 
 class CartItemSerializer(serializers.Serializer):
     product = ProductSerializer(read_only=True)
+    variant = ProductVariantSerializer(read_only=True)
     quantity = serializers.IntegerField(min_value=1, max_value=99)
     unit_price_cad = serializers.SerializerMethodField()
     line_total_cad = serializers.SerializerMethodField()
 
     def get_unit_price_cad(self, obj):
-        return f"{obj.product.price_cad:.2f}"
+        return f"{obj.unit_price_cad:.2f}"
 
     def get_line_total_cad(self, obj):
-        return f"{obj.product.price_cad * obj.quantity:.2f}"
+        return f"{obj.unit_price_cad * obj.quantity:.2f}"
 
 
 class CartSerializer(serializers.ModelSerializer):
@@ -34,11 +35,12 @@ class CartSerializer(serializers.ModelSerializer):
         return sum(item.quantity for item in obj.items.all())
 
     def get_subtotal_cad(self, obj):
-        total = sum((item.product.price_cad * item.quantity for item in obj.items.all()), Decimal("0.00"))
+        total = sum((item.unit_price_cad * item.quantity for item in obj.items.all()), Decimal("0.00"))
         return f"{total:.2f}"
 
 
 class CartItemWriteSerializer(serializers.Serializer):
+    variant_id = serializers.IntegerField(min_value=1, required=False, allow_null=True, default=None)
     product_id = serializers.PrimaryKeyRelatedField(
         source="product", queryset=Product.objects.filter(is_active=True)
     )
@@ -46,6 +48,7 @@ class CartItemWriteSerializer(serializers.Serializer):
 
 
 class CartMergeItemSerializer(serializers.Serializer):
+    variant_id = serializers.IntegerField(min_value=1, required=False, allow_null=True, default=None)
     product_id = serializers.IntegerField(min_value=1)
     quantity = serializers.IntegerField(min_value=1, max_value=99)
 
@@ -54,9 +57,9 @@ class CartMergeSerializer(serializers.Serializer):
     items = CartMergeItemSerializer(many=True, allow_empty=True)
 
     def validate_items(self, value):
-        ids = [item["product_id"] for item in value]
+        ids = [(item["product_id"], item.get("variant_id")) for item in value]
         if len(ids) != len(set(ids)):
-            raise serializers.ValidationError("Each product may appear only once.")
+            raise serializers.ValidationError("Each product variation may appear only once.")
         return value
 
 
@@ -117,7 +120,7 @@ class CheckoutCreateOrderSerializer(serializers.Serializer):
 class OrderItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = OrderItem
-        fields = ("sku", "name", "quantity", "unit_price_cad", "line_total_cad")
+        fields = ("sku", "name", "variation", "quantity", "unit_price_cad", "line_total_cad")
 
 
 class OrderSerializer(serializers.ModelSerializer):

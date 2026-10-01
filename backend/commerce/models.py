@@ -7,7 +7,7 @@ from django.db import models
 from django.db.models import Q
 from django.utils import timezone
 
-from catalog.models import Product
+from catalog.models import Product, ProductVariant
 
 
 class Cart(models.Model):
@@ -40,6 +40,8 @@ class Cart(models.Model):
 class CartItem(models.Model):
     cart = models.ForeignKey(Cart, related_name="items", on_delete=models.CASCADE)
     product = models.ForeignKey(Product, related_name="cart_items", on_delete=models.CASCADE)
+    variant = models.ForeignKey(ProductVariant, related_name="cart_items", on_delete=models.PROTECT, null=True, blank=True)
+    variant_key = models.PositiveBigIntegerField(default=0, editable=False)
     quantity = models.PositiveIntegerField(validators=(MinValueValidator(1),))
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -47,12 +49,31 @@ class CartItem(models.Model):
     class Meta:
         ordering = ("created_at", "id")
         constraints = [
-            models.UniqueConstraint(fields=("cart", "product"), name="unique_product_per_cart"),
+            models.UniqueConstraint(fields=("cart", "product", "variant_key"), name="unique_product_variation_per_cart"),
             models.CheckConstraint(condition=Q(quantity__gte=1), name="cart_item_quantity_gte_1"),
         ]
 
     def __str__(self):
         return f"{self.quantity} × {self.product}"
+
+    def save(self, *args, **kwargs):
+        # A non-null identity also enforces uniqueness on MySQL for base products.
+        self.variant_key = self.variant_id or 0
+        if kwargs.get("update_fields") is not None:
+            kwargs["update_fields"] = set(kwargs["update_fields"]) | {"variant_key"}
+        super().save(*args, **kwargs)
+
+    @property
+    def unit_price_cad(self):
+        return self.variant.effective_price_cad if self.variant_id else self.product.price_cad
+
+    def clean(self):
+        super().clean()
+        from django.core.exceptions import ValidationError
+        if self.variant_id and self.variant.product_id != self.product_id:
+            raise ValidationError({"variant": "This variation belongs to a different product."})
+        if not self.variant_id and self.product_id and self.product.variants.exists():
+            raise ValidationError({"variant": "Select a product variation."})
 
 
 class ShippingRate(models.Model):
@@ -158,6 +179,7 @@ class OrderItem(models.Model):
     product = models.ForeignKey(Product, related_name="order_items", on_delete=models.SET_NULL, null=True, blank=True)
     sku = models.CharField(max_length=80)
     name = models.CharField(max_length=180)
+    variation = models.CharField(max_length=240, blank=True)
     quantity = models.PositiveIntegerField(validators=(MinValueValidator(1),))
     unit_price_cad = models.DecimalField(max_digits=10, decimal_places=2)
     line_total_cad = models.DecimalField(max_digits=11, decimal_places=2)

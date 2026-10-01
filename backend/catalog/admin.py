@@ -1,5 +1,10 @@
 from django.contrib import admin
-from .models import Category, Product, ProductImage
+from .models import Category, Product, ProductImage, ProductVariant
+
+class ProductVariantInline(admin.TabularInline):
+    model = ProductVariant
+    extra = 0
+    fields = ("sku", "size", "color", "label", "price_cad", "inventory_quantity", "track_inventory", "is_active", "sort_order")
 
 class ProductImageInline(admin.TabularInline):
     model = ProductImage
@@ -18,4 +23,4 @@ class ProductAdmin(admin.ModelAdmin):
     search_fields = ("name", "sku", "description")
     list_editable = ("price_cad", "inventory_quantity", "is_active", "is_featured")
     prepopulated_fields = {"slug": ("name",)}
-    inlines = (ProductImageInline,)
+    inlines = (ProductImageInline, ProductVariantInline)

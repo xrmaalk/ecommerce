@@ -63,6 +63,7 @@ class CartItemView(APIView):
                 request.user,
                 serializer.validated_data["product"],
                 serializer.validated_data["quantity"],
+                serializer.validated_data.get("variant_id"),
             )
         except CommerceError as error:
             return commerce_error_response(error)
@@ -75,7 +76,10 @@ class CartMergeView(APIView):
     def post(self, request):
         serializer = CartMergeSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        cart = merge_cart(request.user, serializer.validated_data["items"])
+        try:
+            cart = merge_cart(request.user, serializer.validated_data["items"])
+        except CommerceError as error:
+            return commerce_error_response(error)
         return Response(CartSerializer(cart, context={"request": request}).data)
 
 

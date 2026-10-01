@@ -42,8 +42,9 @@ async function requestQuote() {
   error.value = ""
   quote.value = null
   try {
+    await bag.flushSync()
     quote.value = (await api.post<CheckoutSession>("/commerce/checkout/quote/", address)).data
-  } catch (requestError) { error.value = getApiErrorMessage(requestError) }
+  } catch (requestError) { error.value = bag.syncError || getApiErrorMessage(requestError) }
   finally { isQuoting.value = false }
 }
 
@@ -96,6 +97,7 @@ function handleCompleted(order: Order) {
 
       <aside class="checkout-summary bag-summary">
         <h2>Order total</h2>
+        <div v-for="(item, index) in quote?.line_items" :key="index" class="order-line"><div><strong>{{ item.name }}</strong><small v-if="item.variation">{{ item.variation }}</small><small>Qty {{ item.quantity }}</small></div><span>{{ formatCad(Number(item.line_total_cad)) }}</span></div>
         <dl>
           <div><dt>Items ({{ bag.itemCount }})</dt><dd>{{ formatCad(quote ? Number(quote.subtotal_cad) : bag.subtotal) }}</dd></div>
           <div><dt>Shipping</dt><dd>{{ quote ? formatCad(Number(quote.shipping_cad)) : "Calculated after address" }}</dd></div>
