@@ -1,17 +1,17 @@
 <script setup lang="ts">
-import { isDemo } from "./api"
+import { computed, watch } from "vue"
+import { useRoute } from "vue-router"
+import { isDemo, publisherUrl } from "./api"
 import ArchiveThemeToggle from "./ArchiveThemeToggle.vue"
 import AdSenseBlock from "../components/adsense/AdSenseBlock.vue"
 import { useArchiveReaderStore } from "./readerStore"
 
 const reader = useArchiveReaderStore()
-void reader.initialize()
-
-const publisherUrl =
-  import.meta.env.VITE_ARCHIVES_ADMIN_URL ||
-  (import.meta.env.DEV
-    ? "http://127.0.0.1:8001/admin/archives/post/"
-    : "https://admin.organicemperor.com/admin/archives/post/")
+const route = useRoute()
+const preview = computed(() => route.name === "preview")
+watch(() => route.name, (name) => {
+  if (name && name !== "preview") void reader.initialize()
+}, { immediate: true })
 </script>
 
 <template>
@@ -59,6 +59,7 @@ const publisherUrl =
         >
       </nav>
       <AdSenseBlock
+        v-if="route.name && !preview"
         class="archive-ad-placement"
         role="complementary"
         aria-label="Header advertisement" />
@@ -70,6 +71,7 @@ const publisherUrl =
     <main id="main-content" tabindex="-1"><RouterView /></main>
     <footer class="archive-footer">
       <AdSenseBlock
+        v-if="route.name && !preview"
         class="archive-ad-placement"
         role="complementary"
         aria-label="Footer advertisement" />

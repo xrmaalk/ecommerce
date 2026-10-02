@@ -104,6 +104,10 @@ SESSION_COOKIE_AGE = 60 * 60 * 24 * 14
 CSRF_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_HTTPONLY = True
 CSRF_COOKIE_SAMESITE = "Lax"
+ARCHIVES_FRONTEND_URL = os.environ.get(
+    "ARCHIVES_FRONTEND_URL",
+    "http://127.0.0.1:5174" if DEBUG else "https://organicarchives.organicemperor.com",
+)
 REST_FRAMEWORK = {"DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.AllowAny"],
                   "DEFAULT_AUTHENTICATION_CLASSES": ["rest_framework.authentication.SessionAuthentication"],
                   "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination", "PAGE_SIZE": 24,

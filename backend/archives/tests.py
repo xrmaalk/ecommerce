@@ -25,6 +25,156 @@ from .models import (
 from .publisher import PUBLISHER_GROUP_NAME, PUBLISHER_PERMISSION_CODENAMES
 
 
+@override_settings(ARCHIVES_FRONTEND_URL="https://organicarchives.organicemperor.com")
+class ArchivesPreviewTests(APITestCase):
+    def setUp(self):
+        self.publisher = get_user_model().objects.create_user(
+            username="preview-publisher", password="local-test-password", is_staff=True,
+        )
+        self.publisher.groups.add(Group.objects.get(name=PUBLISHER_GROUP_NAME))
+        self.draft = Post.objects.create(
+            title="A private release", slug="private-release", excerpt="Saved draft excerpt",
+        )
+        self.block = PostBlock.objects.create(post=self.draft, text="**Saved draft** content")
+        self.preview_url = reverse("admin:archives_post_preview_data", args=(self.draft.pk,))
+        self.frontend_url = f"https://organicarchives.organicemperor.com/preview/{self.draft.pk}"
+
+    def form_data(self):
+        return {
+            "title": "An updated draft", "slug": self.draft.slug, "kind": "release",
+            "excerpt": "Revised introduction", "author_name": "The editors", "status": "draft",
+            "blocks-TOTAL_FORMS": "1", "blocks-INITIAL_FORMS": "1",
+            "blocks-MIN_NUM_FORMS": "0", "blocks-MAX_NUM_FORMS": "1000",
+            "blocks-0-id": str(self.block.pk), "blocks-0-post": str(self.draft.pk),
+            "blocks-0-kind": "text", "blocks-0-position": "0", "blocks-0-text": "The revised body.",
+            "_preview": "Save and preview",
+        }
+
+    def test_preview_requires_active_staff_with_archives_post_permission(self):
+        self.assertEqual(self.client.get(self.preview_url).status_code, 302)
+        for name, staff, active, permitted, expected in (
+            ("reader", False, True, False, 302),
+            ("nonstaff-with-permission", False, True, True, 302),
+            ("other-staff", True, True, False, 403),
+            ("inactive-publisher", True, False, True, 302),
+        ):
+            with self.subTest(user=name):
+                user = get_user_model().objects.create_user(username=name, is_staff=staff, is_active=active)
+                if permitted:
+                    user.groups.add(Group.objects.get(name=PUBLISHER_GROUP_NAME))
+                self.client.force_login(user)
+                response = self.client.get(self.preview_url)
+                self.assertEqual(response.status_code, expected)
+                self.assertNotContains(response, self.draft.title, status_code=expected)
+        self.client.force_login(self.publisher)
+        self.assertEqual(self.client.get(self.preview_url).status_code, 200)
+        self.publisher.groups.clear()
+        self.assertEqual(self.client.get(self.preview_url).status_code, 403)
+
+    def test_publisher_preview_is_uncached_and_does_not_publish_or_notify(self):
+        reader = get_user_model().objects.create_user(username="preview-subscriber")
+        ArchiveSubscription.objects.create(user=reader, last_read_at=timezone.now() - timedelta(days=1))
+        self.client.force_login(self.publisher)
+        original_updated_at = self.draft.updated_at
+        response = self.client.get(self.preview_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["status"], "draft")
+        self.assertIsNone(response.json()["published_at"])
+        self.assertEqual(response.json()["blocks"][0]["text"], self.block.text)
+        self.assertIn("no-store", response["Cache-Control"])
+        self.assertIn("private", response["Cache-Control"])
+        self.assertEqual(response["X-Robots-Tag"], "noindex, nofollow")
+        self.draft.refresh_from_db()
+        self.assertEqual(self.draft.status, "draft")
+        self.assertEqual(self.draft.updated_at, original_updated_at)
+        self.assertEqual(self.client.get(reverse("archives:post-list")).data["count"], 0)
+        self.assertEqual(self.client.get(reverse("archives:post-detail", args=(self.draft.slug,))).status_code, 404)
+        self.client.force_login(reader)
+        self.assertEqual(self.client.get(reverse("archives:notifications")).data["unread_count"], 0)
+
+    @override_settings(
+        CORS_ALLOWED_ORIGINS=["https://organicarchives.organicemperor.com"],
+        ALLOWED_HOSTS=["testserver", "admin.organicemperor.com"],
+    )
+    def test_preview_uses_admin_origin_session_and_allows_credentialed_archives_origin(self):
+        self.client.force_login(self.publisher)
+        response = self.client.get(
+            self.preview_url, HTTP_HOST="admin.organicemperor.com",
+            HTTP_ORIGIN="https://organicarchives.organicemperor.com",
+            HTTP_X_FORWARDED_PROTO="https",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Access-Control-Allow-Origin"], "https://organicarchives.organicemperor.com")
+        self.assertEqual(response["Access-Control-Allow-Credentials"], "true")
+        self.assertEqual(response.json()["edit_url"],
+                         f"https://admin.organicemperor.com/admin/archives/post/{self.draft.pk}/change/")
+        forbidden_origin = self.client.get(self.preview_url, HTTP_ORIGIN="https://untrusted.example")
+        self.assertNotIn("Access-Control-Allow-Origin", forbidden_origin)
+
+    def test_scheduled_posts_can_be_previewed_but_public_and_interaction_routes_stay_private(self):
+        self.client.force_login(self.publisher)
+        self.draft.status = "published"
+        self.draft.published_at = timezone.now() + timedelta(days=1)
+        self.draft.save()
+        self.assertEqual(self.client.get(self.preview_url).status_code, 200)
+        for name in ("post-detail", "post-engagement", "post-like", "post-comment"):
+            url = reverse(f"archives:{name}", args=(self.draft.slug,))
+            method, data = (self.client.put, {}) if name == "post-like" else (
+                (self.client.post, {"body": "Should not be posted"}) if name == "post-comment" else (self.client.get, {})
+            )
+            with self.subTest(route=name):
+                self.assertEqual(method(url, data).status_code, 404)
+        self.assertFalse(PostLike.objects.filter(post=self.draft).exists())
+        self.assertFalse(PostComment.objects.filter(post=self.draft).exists())
+
+    def test_save_and_preview_validates_and_saves_draft_and_inlines(self):
+        self.client.force_login(self.publisher)
+        change_url = reverse("admin:archives_post_change", args=(self.draft.pk,))
+        page = self.client.get(change_url)
+        self.assertContains(page, 'name="_preview"')
+        self.assertContains(page, "Preview saved post")
+        self.assertContains(page, self.frontend_url)
+        response = self.client.post(change_url, self.form_data())
+        self.assertRedirects(response, self.frontend_url, fetch_redirect_response=False)
+        self.draft.refresh_from_db()
+        self.block.refresh_from_db()
+        self.assertEqual(self.draft.status, "draft")
+        self.assertIsNone(self.draft.published_at)
+        self.assertEqual(self.draft.title, "An updated draft")
+        self.assertEqual(self.block.text, "The revised body.")
+        invalid = self.form_data()
+        invalid["blocks-0-text"] = ""
+        invalid["title"] = "Must not save"
+        response = self.client.post(change_url, invalid)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Enter the section&#x27;s text.")
+        self.draft.refresh_from_db()
+        self.assertEqual(self.draft.title, "An updated draft")
+
+    def test_new_draft_can_be_saved_and_previewed(self):
+        self.client.force_login(self.publisher)
+        data = self.form_data()
+        data["slug"] = "new-preview-draft"
+        data["blocks-INITIAL_FORMS"] = "0"
+        del data["blocks-0-id"]
+        del data["blocks-0-post"]
+        response = self.client.post(reverse("admin:archives_post_add"), data)
+        draft = Post.objects.get(slug="new-preview-draft")
+        self.assertRedirects(response, f"https://organicarchives.organicemperor.com/preview/{draft.pk}",
+                             fetch_redirect_response=False)
+        self.assertEqual(draft.status, "draft")
+        self.assertEqual(draft.blocks.get().text, "The revised body.")
+
+    def test_preview_is_read_only_and_unknown_post_returns_not_found(self):
+        self.client.force_login(self.publisher)
+        self.assertEqual(self.client.get(reverse("admin:archives_post_preview_data", args=(999999,))).status_code, 404)
+        for method in (self.client.post, self.client.put, self.client.patch, self.client.delete):
+            with self.subTest(method=method.__name__):
+                self.assertEqual(method(self.preview_url, {"status": "published"}).status_code, 405)
+        self.draft.refresh_from_db()
+        self.assertEqual(self.draft.status, "draft")
+
+
 class ArchivesTests(APITestCase):
     def setUp(self):
         self.now = timezone.now()

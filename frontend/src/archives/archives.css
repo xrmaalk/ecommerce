@@ -1151,6 +1151,21 @@ h1,h2,p {
   font-size:12px;
   white-space:nowrap;
 }
+.draft-preview-notice {
+  margin:0 0 28px;
+  padding:18px 22px;
+  border:1px solid var(--line);
+  border-left:4px solid var(--green);
+  border-radius:8px;
+  background:var(--surface);
+}
+.draft-preview-notice strong {
+  font-size:18px;
+}
+.draft-preview-notice p {
+  margin:6px 0 0;
+  color:var(--muted);
+}
 .reader-end {
   margin:50px auto 0;
   padding-top:30px;

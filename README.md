@@ -74,6 +74,17 @@ hashed assets are harmless and can be cleaned up after the new release is live.
 The editorial archive provides a numbered feed, category filters, search, and
 article pages with images and videos. Editors publish articles, news releases,
 and updates through Django Admin, including drafts and scheduled publication.
+Use **Save and preview** to review the saved article in the Archives layout before
+publication. **Preview saved post** opens an existing draft or scheduled post;
+previews require an active publisher session and Archives post permission.
+
+For the normal local backend on port `8000`, run `npm --prefix frontend run
+dev:archives` in a second terminal and leave it running. Open Archives at
+`http://127.0.0.1:5174` and Publisher login at
+`http://127.0.0.1:5174/admin/archives/post/`. Both servers must be running for draft
+previews. For a different local backend, set `VITE_ARCHIVES_BACKEND_URL` before
+starting Archives; its API, media, and publisher proxies use that backend.
+Local preview requests share the Archives origin and its session cookie.
 
 Running `python manage.py migrate` creates an `Organic Archives Publishers`
 group scoped to Posts and Post Blocks. After creating a normal user and setting

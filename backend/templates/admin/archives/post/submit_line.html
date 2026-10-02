@@ -1,0 +1,5 @@
+{% extends "admin/submit_line.html" %}
+{% block submit-row %}
+{{ block.super }}
+{% if show_save %}<input type="submit" value="Save and preview" name="_preview">{% endif %}
+{% endblock %}

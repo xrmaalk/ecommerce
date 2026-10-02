@@ -5,8 +5,11 @@ import {
   ArchiveError,
   formatDate,
   getArchive,
+  getArchivePreview,
   kindLabels,
+  publisherUrl,
   type PostDetail,
+  type PostPreview,
 } from "./api"
 import {
   addPostComment,
@@ -21,7 +24,12 @@ import { renderMarkdown } from "./markdown"
 
 const route = useRoute()
 const reader = useArchiveReaderStore()
-const post = ref<PostDetail | null>(null)
+const preview = computed(() => route.name === "preview")
+const post = ref<PostDetail | PostPreview | null>(null)
+const editUrl = computed(() => post.value && "edit_url" in post.value ? post.value.edit_url : publisherUrl)
+const previewLabel = computed(() => post.value && "status" in post.value && post.value.status === "draft"
+  ? "Draft preview" : "Editorial preview")
+const denied = ref(false)
 const loading = ref(true)
 const missing = ref(false)
 const engagement = ref<PostEngagement>({
@@ -66,35 +74,38 @@ async function load() {
   controller = request
   loading.value = true
   missing.value = false
+  denied.value = false
   post.value = null
   interactionError.value = ""
   commentBody.value = ""
-  void reader.initialize()
+  if (!preview.value) void reader.initialize()
   try {
     const slug = String(route.params.slug)
-    const data = await getArchive<PostDetail>(
+    const data = preview.value ? await getArchivePreview(String(route.params.id), request.signal) : await getArchive<PostDetail>(
       `posts/${encodeURIComponent(slug)}/`,
       request.signal,
     )
     if (request.signal.aborted) return
     post.value = data
-    document.title = `${data.title} | OrganicArchives`
+    document.title = `${preview.value ? 'Preview: ' : ''}${data.title} | OrganicArchives`
     document
       .querySelector('meta[name="description"]')
-      ?.setAttribute("content", data.excerpt)
+      ?.setAttribute("content", preview.value ? "Private editorial preview." : data.excerpt)
     document
       .querySelector('meta[property="og:title"]')
       ?.setAttribute("content", document.title)
     document
       .querySelector('meta[property="og:description"]')
-      ?.setAttribute("content", data.excerpt)
+      ?.setAttribute("content", preview.value ? "Private editorial preview." : data.excerpt)
     document
       .querySelector('meta[property="og:type"]')
       ?.setAttribute("content", "article")
-    void loadEngagement(slug)
+    if (!preview.value) void loadEngagement(slug)
   } catch (error) {
-    if (!request.signal.aborted)
+    if (!request.signal.aborted) {
       missing.value = error instanceof ArchiveError && error.status === 404
+      denied.value = preview.value && error instanceof ArchiveError && [401, 403].includes(error.status)
+    }
   } finally {
     if (!request.signal.aborted) loading.value = false
   }
@@ -142,31 +153,39 @@ async function toggleSubscription() {
   }
 }
 
-watch(() => route.params.slug, load, { immediate: true })
+watch(() => [route.name, route.params.slug, route.params.id], load, { immediate: true })
 onUnmounted(() => controller?.abort())
 </script>
 
 <template>
   <div class="reader-wrap">
-    <RouterLink class="back-link" to="/">← Back to the feed</RouterLink>
+    <a v-if="preview" class="back-link" :href="editUrl">← Back to editing</a>
+    <RouterLink v-else class="back-link" to="/">← Back to the feed</RouterLink>
+    <aside v-if="preview" class="draft-preview-notice" role="status">
+      <strong>{{ post ? previewLabel : "Editorial preview" }}</strong>
+      <p>Review the saved post before release. Only authorised publishers can open this preview.</p>
+    </aside>
     <div v-if="loading" class="feed-state" role="status">
       <h1>Opening the story…</h1>
     </div>
     <div v-else-if="!post" class="feed-state">
       <h1>
         {{
-          missing
+          denied ? "Publisher access is required." : missing
             ? "This post isn’t available."
             : "The post couldn’t be loaded."
         }}
       </h1>
       <p>
         {{
-          missing
+          preview && !missing
+            ? "Sign in through Publisher login, then try again. Your account needs Archives post permission."
+            : missing
             ? "It may have moved or is no longer published."
             : "Please try again in a moment."
         }}
       </p>
+      <a v-if="preview && !missing" class="text-link" :href="publisherUrl">Publisher login →</a>
       <button v-if="!missing" class="solid-button" @click="load">
         Try again</button
       ><RouterLink v-else class="text-link" to="/"
@@ -192,10 +211,10 @@ onUnmounted(() => controller?.abort())
           <div>
             <strong>{{ post.author_name }}</strong>
             <div class="post-meta">
-              <time :datetime="post.published_at">{{
+              <time v-if="post.published_at" :datetime="post.published_at">{{
                 formatDate(post.published_at)
               }}</time
-              ><span aria-hidden="true">·</span
+              ><span v-else>Not published</span><span aria-hidden="true">·</span
               ><span>{{ post.reading_minutes }} min read</span>
             </div>
           </div>
@@ -243,7 +262,7 @@ onUnmounted(() => controller?.abort())
           </figure>
         </template>
       </div>
-      <section class="reader-community" aria-labelledby="community-title">
+      <section v-if="!preview" class="reader-community" aria-labelledby="community-title">
         <header>
           <div>
             <span class="eyebrow">THE READER CIRCLE</span>

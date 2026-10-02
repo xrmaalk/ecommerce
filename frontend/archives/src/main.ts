@@ -16,6 +16,11 @@ const router = createRouter({
       component: () => import("../../src/archives/PostView.vue"),
     },
     {
+      path: "/preview/:id",
+      name: "preview",
+      component: () => import("../../src/archives/PostView.vue"),
+    },
+    {
       path: "/reader",
       name: "reader",
       component: () => import("../../src/archives/ReaderView.vue"),
@@ -28,7 +33,18 @@ const router = createRouter({
   ],
   scrollBehavior: (_to, _from, saved) => saved ?? { top: 0 },
 })
-router.afterEach(() => {
+router.afterEach((to) => {
+  let robots = document.querySelector<HTMLMetaElement>('meta[name="robots"]')
+  if (to.name === "preview") {
+    if (!robots) {
+      robots = document.createElement("meta")
+      robots.name = "robots"
+      document.head.append(robots)
+    }
+    robots.content = "noindex, nofollow"
+  } else {
+    robots?.remove()
+  }
   document.title = "OrganicArchives | OrganicEmperor"
   document
     .querySelector('meta[name="description"]')
