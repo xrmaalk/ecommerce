@@ -16,6 +16,9 @@ export default defineConfig(({ mode }) => {
       emptyOutDir: true,
     },
     server: {
+      watch: {
+        ignored: ["**/dist/**", "**/dist-archives/**", "**/.seo-verification/**"],
+      },
       host: "127.0.0.1",
       port: 5174,
       strictPort: true,
