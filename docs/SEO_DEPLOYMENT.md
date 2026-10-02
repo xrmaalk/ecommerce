@@ -40,6 +40,10 @@ required. Do not edit the generated shells or hard-code bundle hashes.
    and the same `/assets/…` references as the frontend release.
 4. Install the updated frontend `index.html` and `.htaccess` files. Enable the
    HTTPS proxy configuration below **before** exposing the new rewrite rules.
+   Show hidden files in the hosting file manager and explicitly overwrite the
+   existing `.htaccess`; extracting only newer files can leave an older rule in
+   place. Frontend ZIPs now give `.htaccess` the same fresh timestamp as the entry
+   document, rather than the fixed timestamp used for immutable assets.
    An atomic release switch is preferable where the host supports it.
 5. Bypass/purge any CDN or LiteSpeed full-page cache for `/products/*`, `/posts/*`
    and `/site/*`. Keep hashed asset caching. Dynamic responses carry
@@ -80,8 +84,14 @@ Validate the generated webserver configuration before reload. The API's TLS
 certificate must validate. See [Apache proxy documentation](https://httpd.apache.org/docs/2.4/mod/mod_proxy.html)
 and [HTTPS proxy directives](https://httpd.apache.org/docs/2.4/mod/mod_ssl.html#sslproxyengine).
 
-On LiteSpeed/DirectAdmin, ask the host to enable HTTPS proxy rewrite support for
-the fixed API upstream. If `[P]` is unavailable in the hosting plan, configure
+On LiteSpeed/DirectAdmin, ask the host to configure a **Web Server external
+application** for the fixed HTTPS API upstream. LiteSpeed does not automatically
+create a proxy target for a domain name, even if it is hosted on the same server.
+The provider must configure the backend address, HTTPS connection and API Host
+header, then enable the two path mappings. See
+[LiteSpeed proxy setup](https://docs.litespeedtech.com/lsws/cp/cpanel/rewrite-proxy/).
+Apache's `SSLProxyEngine` instruction alone does not establish this LiteSpeed
+external application. If `[P]` is unavailable in the hosting plan, configure
 the **same two mappings** through the host's reverse proxy/vhost facility before
 the static SPA fallback, preserving 404 and no-store. Do not replace `[P]` with
 a redirect to the API domain. The exact host facility depends on whether it
@@ -89,6 +99,44 @@ runs Apache, LiteSpeed Enterprise, or OpenLiteSpeed; this repository cannot
 configure that account-level capability. A public URL returning the old static
 head means routing is incomplete. A 500/503 indicates proxy/build configuration
 needs fixing. Browser-only head updates do not complete deployment.
+
+If the frontend returns the emblem but Django returns the article's cover,
+compare the active `.htaccess` in the Archives document root with
+`frontend/public/.htaccess`. The `^posts/` proxy must appear **before** the
+`RewriteRule ^ index.html [L]` catch-all. The active file should contain:
+
+```apache
+RewriteCond %{HTTP_HOST} ^organicarchives\.organicemperor\.com$ [NC]
+RewriteRule ^posts/([A-Za-z0-9_-]+)$ https://api.organicemperor.com/site/archives/posts/$1 [P,L]
+```
+
+If that rule is present yet the frontend still serves the static document,
+check parent-directory or vhost rewrite rules that run earlier, the actual
+subdomain document root, and LiteSpeed's rewrite configuration/logs. If it
+returns 500 after the rule is installed, ask the host to check the fixed proxy
+external application. Keep TLS verification enabled. A browser redirect or
+JavaScript metadata update does not replace this server routing.
+
+To distinguish rules that are not taking effect from a proxy-target problem,
+request a valid detail URL with a trailing slash **without following redirects**:
+
+```powershell
+curl.exe -sS -D - -o NUL https://organicarchives.organicemperor.com/posts/male-cats-a-urinary-diet/
+```
+
+This file's explicit rule should return 308 with the non-slash frontend URL in
+`Location`. If it instead returns the static index with 200, check the active
+HTTPS document root (including any separate `private_html` root), that root's
+`.htaccess`, and earlier parent/vhost rewrites before diagnosing the proxy.
+The file contents alone do not prove that the request reaches that file.
+
+If the host uses **OpenLiteSpeed**, it must reload the rewrite configuration
+after `.htaccess` changes. DirectAdmin normally triggers this when the file is
+saved in File Manager; do not assume ZIP extraction also reloads it. This
+requirement differs from LiteSpeed Enterprise. See
+[DirectAdmin's OpenLiteSpeed guidance](https://docs.directadmin.com/webservices/openlitespeed/index.html#how-to-make-ols-automatically-reload-after-htaccess-changes).
+
+See [hosting handoff with observed response details](SEO_HOSTING_HANDOFF.md).
 
 ## Trusted media origins
 
@@ -100,8 +148,43 @@ HTTPS origins may be configured as comma-separated `SEO_IMAGE_ORIGINS` and
 `VITE_PUBLIC_IMAGE_ORIGINS`, with matching values. Include only origins serving
 public images; schemes, credentials and untrusted origins are rejected.
 Canonical site origins are fixed to the two requested public domains and are
-never taken from request Host or client content. No dimensions/MIME tags are
-invented. Product gallery changes do not change sharing images.
+never taken from request Host or client content. Product gallery changes do
+not change sharing images.
+
+## Sharing image dimensions
+
+Both `og:image` and `twitter:image` point to a real **1200 × 630 PNG**. The
+`og:image:width`, `og:image:height`, and `og:image:type` tags declare that file's
+actual dimensions and MIME type. These are pixel dimensions, not CSS sizing
+instructions; putting wide dimensions on the original portrait emblem would
+not prevent a platform from cropping it.
+
+Django serves the full source image, proportionally contained within a wide
+canvas with 48-pixel padding. Product images and article covers use a white
+background; the brand fallbacks use their brand backgrounds. Original reader
+and gallery images are unchanged. The public image endpoints are:
+
+```text
+/site/storefront/share-image.png
+/site/archives/share-image.png
+/site/storefront/products/<slug>/share-image.png
+/site/archives/posts/<slug>/share-image.png
+```
+
+These endpoints open only the stored model image or a fixed packaged brand
+asset, and accept no remote source URL or custom dimensions. They enforce
+public visibility on every request, including staff requests and old versioned
+URLs. Missing, corrupt or oversized source files use the brand fallback. Image
+responses carry no-store so a withdrawal takes effect at the origin. The
+version query changes when a different uploaded source is selected; social
+platforms may still cache previously fetched previews.
+
+Deploy the backend image endpoints before installing the new frontend heads,
+then verify the actual image URL returns `image/png` at 1200 × 630. The new
+fallback URLs also work for static listing heads. Product/article titles and
+images still require the public-domain HTML proxy described above. Refresh a
+platform preview after verifying the deployed HTML and image; existing posts
+may retain the old crop.
 
 ## Verify before calling production complete
 
@@ -128,7 +211,7 @@ and through browser Back/Forward. Titles, canonical URLs, descriptions, images,
 and article-only fields must update; gallery selection must retain the primary
 sharing image. Existing accounts, carts, checkout and publisher previews should
 still work. Static listing heads retain the appropriate brand image, including
-`https://organicarchives.organicemperor.com/OA-Emblem-BBG.png`.
+`https://api.organicemperor.com/site/archives/share-image.png`.
 
 After verifying origin HTML and purging any hosting page cache, request a fresh
 preview in [Meta Sharing Debugger](https://developers.facebook.com/tools/debug/)

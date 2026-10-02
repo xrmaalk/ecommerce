@@ -21,13 +21,13 @@ SITES = {
         "origin": "https://organicemperor.com", "name": "OrganicEmperor",
         "title": "OrganicEmperor | Forever Wellness",
         "description": "OrganicEmperor.com — Quality body care, must have shave essentials and comforting organic teas, soaps and wellness products.",
-        "image": "/organic-emperor-emblem.png",
+        "image": "https://api.organicemperor.com/site/storefront/share-image.png",
     },
     "archives": {
         "origin": "https://organicarchives.organicemperor.com", "name": "OrganicArchives",
         "title": "OrganicArchives | OrganicEmperor",
         "description": "Articles, news releases, and updates from OrganicEmperor. Explore the OrganicArchives.",
-        "image": "/OA-Emblem-BBG.png",
+        "image": "https://api.organicemperor.com/site/archives/share-image.png",
     },
 }
 
@@ -88,9 +88,15 @@ def site_metadata(site, path="/"):
         "title": brand["title"], "social_title": brand["title"],
         "description": brand["description"], "canonical": brand["origin"] + path,
         "site_name": brand["name"], "type": "website",
-        "image": brand["origin"] + brand["image"], "image_alt": brand["name"] + " emblem",
+        "image": brand["image"], "image_alt": brand["name"] + " emblem",
         "author": "MK SourceCodeX",
     }
+
+
+def share_image_url(site, kind, slug, source):
+    # A changed upload has a new URL for social caches, while visibility is checked on every fetch.
+    version = quote(urlsplit(source).path, safe="")
+    return f"https://api.organicemperor.com/site/{site}/{kind}/{quote(slug, safe='')}/share-image.png?v={version}"
 
 
 def product_metadata(product):
@@ -101,8 +107,9 @@ def product_metadata(product):
     # ProductImage's (sort_order, id) ordering also supplies the reader's first image.
     image = product.images.first()
     if image:
-        data["image"] = safe_image(image.image.url, data["image"])
-        if data["image"] != SITES["storefront"]["origin"] + SITES["storefront"]["image"]:
+        source = safe_image(image.image.url, data["image"])
+        if source != data["image"]:
+            data["image"] = share_image_url("storefront", "products", product.slug, source)
             data["image_alt"] = plain_text(image.alt_text) or name
     return data
 
@@ -118,8 +125,9 @@ def post_metadata(post):
                 published=post.published_at.isoformat() if post.published_at else "",
                 modified=post.updated_at.isoformat() if post.updated_at else "")
     if post.cover_image:
-        data["image"] = safe_image(post.cover_image.url, data["image"])
-        if data["image"] != SITES["archives"]["origin"] + SITES["archives"]["image"]:
+        source = safe_image(post.cover_image.url, data["image"])
+        if source != data["image"]:
+            data["image"] = share_image_url("archives", "posts", post.slug, source)
             data["image_alt"] = plain_text(post.cover_alt) or title
     return data
 

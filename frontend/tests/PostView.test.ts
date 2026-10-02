@@ -64,7 +64,7 @@ describe("Archives draft preview", () => {
     resolveFirst({ ...draft, published_at: "2026-10-01T12:00:00Z" })
     await flush()
     expect(document.head.querySelector('meta[property="og:title"]')?.getAttribute("content")).toBe("Second article")
-    expect(document.head.querySelector('meta[property="og:image"]')?.getAttribute("content")).toBe("https://api.organicemperor.com/second-cover.png")
+    expect(document.head.querySelector('meta[property="og:image"]')?.getAttribute("content")).toBe("https://api.organicemperor.com/site/archives/posts/second/share-image.png?v=%2Fsecond-cover.png")
     expect(document.head.querySelector('link[rel="canonical"]')?.getAttribute("href")).toBe("https://organicarchives.organicemperor.com/posts/second")
   })
 

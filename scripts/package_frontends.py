@@ -155,11 +155,12 @@ def prepare_archive(source: Path, output: Path, files: list[Path]) -> Path:
         ) as archive:
             for file_path in files:
                 relative_path = file_path.relative_to(source).as_posix()
-                # Update-only ZIP extractors must see the rebuilt entry document
-                # as new. A fixed 1980 timestamp can leave an old index deployed.
+                # Update-only extractors must refresh both the document and its
+                # routing rules. A 1980 .htaccess timestamp can retain the old
+                # SPA fallback even after the new SEO document is deployed.
                 timestamp = (
-                    datetime.fromtimestamp(file_path.stat().st_mtime).timetuple()[:6]
-                    if relative_path == "index.html" else FIXED_ZIP_TIME
+                    datetime.fromtimestamp((source / "index.html").stat().st_mtime).timetuple()[:6]
+                    if relative_path in ("index.html", ".htaccess") else FIXED_ZIP_TIME
                 )
                 info = zipfile.ZipInfo(relative_path, timestamp)
                 info.compress_type = zipfile.ZIP_DEFLATED

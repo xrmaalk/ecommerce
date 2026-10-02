@@ -47,6 +47,8 @@ class FrontendPackagingTests(unittest.TestCase):
                 self.assertEqual(archive.read("index.html"), (source / "index.html").read_bytes())
                 self.assertEqual(archive.read(".htaccess"), (source / ".htaccess").read_bytes())
                 self.assertEqual(archive.getinfo("index.html").date_time, (2026, 9, 30, 12, 34, 56))
+                self.assertEqual(archive.getinfo(".htaccess").date_time, (2026, 9, 30, 12, 34, 56))
+                self.assertEqual(archive.getinfo("assets/new-build.js").date_time, packager.FIXED_ZIP_TIME)
                 self.assertEqual(archive.namelist()[-1], "index.html")
 
     def test_every_run_builds_and_legacy_skip_flag_cannot_package_stale_index(self):

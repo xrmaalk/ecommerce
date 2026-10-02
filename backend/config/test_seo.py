@@ -9,13 +9,12 @@ from PIL import Image
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import Client, RequestFactory, TestCase, override_settings
-from django.urls import resolve
+from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from archives.models import Post, PostBlock
 from catalog.models import Category, Product, ProductImage
-from .seo import plain_text, safe_image
+from .seo import plain_text, safe_image, share_image_url
 
 
 class Head(HTMLParser):
@@ -75,8 +74,11 @@ class PublicMetadataTests(TestCase):
         self.assertIn("no-store", response["Cache-Control"])
         self.assertEqual(response["X-Content-Type-Options"], "nosniff")
         head = Head(response.content.decode())
-        for key in ("title", "description", "canonical", "author", "og:title", "og:description", "og:url", "og:type", "og:site_name", "og:image", "og:image:alt", "twitter:card", "twitter:title", "twitter:description", "twitter:image", "twitter:image:alt"):
+        for key in ("title", "description", "canonical", "author", "og:title", "og:description", "og:url", "og:type", "og:site_name", "og:image", "og:image:width", "og:image:height", "og:image:type", "og:image:alt", "twitter:card", "twitter:title", "twitter:description", "twitter:image", "twitter:image:alt"):
             self.assertEqual(len(head.values.get(key, [])), 1, key)
+        self.assertEqual(head.values["og:image:width"], ["1200"])
+        self.assertEqual(head.values["og:image:height"], ["630"])
+        self.assertEqual(head.values["og:image:type"], ["image/png"])
         self.assertIn(b"ca-pub-5910683856071010", response.content)
         self.assertIn(b'name="viewport"', response.content)
         return response, head
@@ -89,20 +91,20 @@ class PublicMetadataTests(TestCase):
         self.assertEqual(head.values["og:title"], [self.product.name])
         self.assertEqual(head.values["description"], ["Gentle daily care"])
         self.assertEqual(head.values["canonical"], ["https://organicemperor.com/products/oil"])
-        self.assertEqual(head.values["og:image"], ["https://api.organicemperor.com" + primary.image.url])
+        self.assertEqual(head.values["og:image"], [share_image_url("storefront", "products", "oil", primary.image.url)])
         self.assertEqual(head.values["og:image:alt"], ['Front "oil"'])
         self.assertEqual(head.values["og:site_name"], ["OrganicEmperor"])
         self.assertEqual(head.values["author"], ["MK SourceCodeX"])
         self.assertNotIn("article:author", head.values)
-        # Exercise the actual media URL's public handler with isolated test storage.
+        # Fetch the exact public sharing URL without authentication.
         path = urlsplit(head.values["og:image"][0]).path
-        match = resolve(path)
-        arguments = {**match.kwargs, "document_root": settings.MEDIA_ROOT}
-        media = match.func(RequestFactory().get(path), **arguments)
+        media = self.client.get(path)
         self.assertEqual(media.status_code, 200)
         self.assertEqual(media["Content-Type"], "image/png")
-        self.assertTrue(b"".join(media.streaming_content).startswith(b"\x89PNG"))
-        media.close()
+        self.assertIn("no-store", media["Cache-Control"])
+        with Image.open(BytesIO(media.content)) as image:
+            self.assertEqual(image.size, (1200, 630))
+            self.assertEqual(image.getpixel((600, 315)), (0, 0, 0))
         self.assertEqual(self.client.head("/site/storefront/products/oil").status_code, 200)
         self.assertEqual(self.client.post("/site/storefront/products/oil").status_code, 405)
 
@@ -111,7 +113,7 @@ class PublicMetadataTests(TestCase):
         self.post.cover_alt = "Main cover"
         self.post.save()
         _, head = self.parsed("/site/archives/posts/article")
-        self.assertEqual(head.values["og:image"], ["https://api.organicemperor.com" + self.post.cover_image.url])
+        self.assertEqual(head.values["og:image"], [share_image_url("archives", "posts", "article", self.post.cover_image.url)])
         self.assertEqual(head.values["og:type"], ["article"])
         self.assertEqual(head.values["article:author"], ["Editor"])
         self.assertEqual(head.values["article:published_time"], [self.post.published_at.isoformat()])
@@ -123,14 +125,14 @@ class PublicMetadataTests(TestCase):
         self.product.description = ""
         self.product.save()
         _, head = self.parsed("/site/storefront/products/oil")
-        self.assertEqual(head.values["og:image"], ["https://organicemperor.com/organic-emperor-emblem.png"])
+        self.assertEqual(head.values["og:image"], ["https://api.organicemperor.com/site/storefront/share-image.png"])
         self.assertIn("Quality body care", head.values["description"][0])
         self.post.excerpt = ""
         self.post.save()
         PostBlock.objects.create(post=self.post, kind="text", text="**A summary** [read](https://example.com) <script>bad()</script>")
         _, head = self.parsed("/site/archives/posts/article")
         self.assertEqual(head.values["description"], ["A summary read"])
-        self.assertEqual(head.values["og:image"], ["https://organicarchives.organicemperor.com/OA-Emblem-BBG.png"])
+        self.assertEqual(head.values["og:image"], ["https://api.organicemperor.com/site/archives/share-image.png"])
 
     def test_inactive_draft_future_undated_and_missing_content_are_404_for_staff_too(self):
         user = get_user_model().objects.create_user(username="staff", is_staff=True)
@@ -139,12 +141,14 @@ class PublicMetadataTests(TestCase):
         self.product.save()
         response, _ = self.parsed("/site/storefront/products/oil", 404)
         self.assertNotIn(self.product.name.encode(), response.content)
+        self.assertEqual(self.client.get("/site/storefront/products/oil/share-image.png").status_code, 404)
         for status, date in ((Post.Status.DRAFT, timezone.now()), (Post.Status.PUBLISHED, timezone.now() + timedelta(days=1)), (Post.Status.PUBLISHED, None)):
             self.post.status, self.post.published_at = status, date
             self.post.save()
             response, _ = self.parsed("/site/archives/posts/article", 404)
             self.assertNotIn(b"Public excerpt", response.content)
             self.assertNotIn(b'content="Editor"', response.content)
+            self.assertEqual(self.client.get("/site/archives/posts/article/share-image.png").status_code, 404)
         self.parsed("/site/archives/posts/absent", 404)
         self.parsed("/site/storefront/products/absent", 404)
 
@@ -158,6 +162,42 @@ class PublicMetadataTests(TestCase):
         self.post.save()
         response, _ = self.parsed("/site/archives/posts/article", 404)
         self.assertNotIn(b"Revised article", response.content)
+        self.assertEqual(self.client.get("/site/archives/posts/article/share-image.png").status_code, 404)
+
+    def test_brand_sharing_images_are_public_pngs_with_matching_dimensions(self):
+        for site in ("storefront", "archives"):
+            path = f"/site/{site}/share-image.png"
+            response = self.client.get(path, {"url": "http://127.0.0.1/private", "width": "9000"})
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response["Content-Type"], "image/png")
+            with Image.open(BytesIO(response.content)) as image:
+                self.assertEqual(image.size, (1200, 630))
+            self.assertEqual(self.client.head(path).status_code, 200)
+            self.assertEqual(self.client.post(path).status_code, 405)
+
+    def test_missing_or_corrupt_images_use_brand_fallback(self):
+        for source in ("missing.png", SimpleUploadedFile("corrupt.png", b"not an image")):
+            self.post.cover_image = source
+            self.post.save()
+            response = self.client.get("/site/archives/posts/article/share-image.png")
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.content, self.client.get("/site/archives/share-image.png").content)
+        for path in ("/site/archives/posts/absent/share-image.png", "/site/storefront/products/absent/share-image.png"):
+            self.assertEqual(self.client.get(path).status_code, 404)
+
+    def test_article_sharing_image_changes_when_the_cover_is_replaced(self):
+        self.post.cover_image = self.image("first.png")
+        self.post.save()
+        _, first = self.parsed("/site/archives/posts/article")
+        content = BytesIO()
+        Image.new("RGB", (40, 20), "red").save(content, format="PNG")
+        self.post.cover_image = SimpleUploadedFile("replacement.png", content.getvalue(), content_type="image/png")
+        self.post.save()
+        _, second = self.parsed("/site/archives/posts/article")
+        self.assertNotEqual(first.values["og:image"], second.values["og:image"])
+        response = self.client.get(urlsplit(second.values["og:image"][0]).path)
+        with Image.open(BytesIO(response.content)) as image:
+            self.assertEqual(image.getpixel((600, 315)), (255, 0, 0))
 
     def test_untrusted_text_is_inert_and_bad_image_urls_fall_back(self):
         self.product.name = 'Oil " /><img src=x onerror=alert(1)> <script>alert(2)</script>'

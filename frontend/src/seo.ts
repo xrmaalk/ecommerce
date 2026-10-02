@@ -7,12 +7,12 @@ export const sites = {
   storefront: {
     origin: "https://organicemperor.com", name: "OrganicEmperor", title: "OrganicEmperor | Forever Wellness",
     description: "OrganicEmperor.com — Quality body care, must have shave essentials and comforting organic teas, soaps and wellness products.",
-    image: "/organic-emperor-emblem.png",
+    image: "https://api.organicemperor.com/site/storefront/share-image.png",
   },
   archives: {
     origin: "https://organicarchives.organicemperor.com", name: "OrganicArchives", title: "OrganicArchives | OrganicEmperor",
     description: "Articles, news releases, and updates from OrganicEmperor. Explore the OrganicArchives.",
-    image: "/OA-Emblem-BBG.png",
+    image: "https://api.organicemperor.com/site/archives/share-image.png",
   },
 } as const
 export type Metadata = {
@@ -50,9 +50,13 @@ export function siteMetadata(site: Site, path = "/", title?: string): Metadata {
   return {
     title: title || brand.title, socialTitle: title || brand.title, description: brand.description,
     canonical: brand.origin + (path.startsWith("/") ? path.split(/[?#]/)[0] : "/"),
-    siteName: brand.name, type: "website", image: brand.origin + brand.image,
+    siteName: brand.name, type: "website", image: brand.image,
     imageAlt: `${brand.name} emblem`, author: "MK SourceCodeX",
   }
+}
+
+function shareImageUrl(site: Site, kind: "products" | "posts", slug: string, source: string) {
+  return `https://api.organicemperor.com/site/${site}/${kind}/${encodeURIComponent(slug)}/share-image.png?v=${encodeURIComponent(new URL(source).pathname)}`
 }
 
 export function productMetadata(product: Product): Metadata {
@@ -65,8 +69,10 @@ export function productMetadata(product: Product): Metadata {
   const primary = product.images[0]
   if (primary) {
     const image = safeImage(primary.image, metadata.image)
-    if (image !== metadata.image) metadata.imageAlt = plainText(primary.alt_text) || name
-    metadata.image = image
+    if (image !== metadata.image) {
+      metadata.imageAlt = plainText(primary.alt_text) || name
+      metadata.image = shareImageUrl("storefront", "products", product.slug, image)
+    }
   }
   return metadata
 }
@@ -85,8 +91,10 @@ export function articleMetadata(post: PostDetail): Metadata {
   const summary = plainText(post.excerpt) || plainText(post.blocks.filter((block) => ["text", "heading", "quote"].includes(block.kind)).map((block) => block.text).join(" "))
   metadata.description = summary || metadata.description
   const image = safeImage(post.cover_image, metadata.image)
-  if (image !== metadata.image) metadata.imageAlt = plainText(post.cover_alt) || title
-  metadata.image = image
+  if (image !== metadata.image) {
+    metadata.imageAlt = plainText(post.cover_alt) || title
+    metadata.image = shareImageUrl("archives", "posts", post.slug, image)
+  }
   metadata.articleAuthor = plainText(post.author_name) || undefined
   metadata.author = metadata.articleAuthor || metadata.author
   metadata.published = publicDate(post.published_at)
@@ -118,6 +126,8 @@ export function applyMetadata(metadata: Metadata) {
     ["property", "og:title", metadata.socialTitle], ["property", "og:description", metadata.description],
     ["property", "og:url", metadata.canonical], ["property", "og:type", metadata.type],
     ["property", "og:site_name", metadata.siteName], ["property", "og:image", metadata.image],
+    ["property", "og:image:width", "1200"], ["property", "og:image:height", "630"],
+    ["property", "og:image:type", "image/png"],
     ["property", "og:image:alt", metadata.imageAlt], ["name", "twitter:card", "summary_large_image"],
     ["name", "twitter:title", metadata.socialTitle], ["name", "twitter:description", metadata.description],
     ["name", "twitter:image", metadata.image], ["name", "twitter:image:alt", metadata.imageAlt],

@@ -17,12 +17,15 @@ beforeEach(() => { document.head.replaceChildren() })
 describe("page metadata", () => {
   it("selects the primary product image and article cover with matching canonical titles", () => {
     beginMetadata("storefront")(productMetadata(product))
-    expect(content("og:image")).toBe("https://api.organicemperor.com/media/front.png")
+    expect(content("og:image")).toBe("https://api.organicemperor.com/site/storefront/products/oil/share-image.png?v=%2Fmedia%2Ffront.png")
+    expect(content("og:image:width")).toBe("1200")
+    expect(content("og:image:height")).toBe("630")
+    expect(content("og:image:type")).toBe("image/png")
     expect(content("og:title")).toBe("Oil")
     expect(content("twitter:image")).toBe(content("og:image"))
     expect(canonical()).toBe("https://organicemperor.com/products/oil")
     beginMetadata("archives")(articleMetadata(article))
-    expect(content("og:image")).toBe("https://api.organicemperor.com/media/cover.png")
+    expect(content("og:image")).toBe("https://api.organicemperor.com/site/archives/posts/article/share-image.png?v=%2Fmedia%2Fcover.png")
     expect(content("article:author")).toBe("Editor")
     expect(content("article:published_time")).toBe(article.published_at)
     expect(content("og:type")).toBe("article")
@@ -36,7 +39,7 @@ describe("page metadata", () => {
     const viewport = document.createElement("meta"); viewport.name = "viewport"; viewport.content = "width=device-width"; document.head.append(viewport)
     beginMetadata("archives")(articleMetadata(article))
     beginMetadata("storefront")(productMetadata(product))
-    for (const field of ["description", "author", "og:title", "og:description", "og:url", "og:type", "og:site_name", "og:image", "og:image:alt", "twitter:card", "twitter:title", "twitter:description", "twitter:image", "twitter:image:alt"]) {
+    for (const field of ["description", "author", "og:title", "og:description", "og:url", "og:type", "og:site_name", "og:image", "og:image:width", "og:image:height", "og:image:type", "og:image:alt", "twitter:card", "twitter:title", "twitter:description", "twitter:image", "twitter:image:alt"]) {
       expect(document.head.querySelectorAll(`meta[property="${field}"],meta[name="${field}"]`)).toHaveLength(1)
     }
     expect(document.head.querySelectorAll("title,link[rel=canonical]")).toHaveLength(2)
@@ -47,7 +50,7 @@ describe("page metadata", () => {
 
   it("uses brand fallbacks, summaries, and safe text and URL handling", () => {
     const missing = articleMetadata({ ...article, excerpt: "", cover_image: "javascript:alert(1)", blocks: [{ kind: "text", text: "**Summary** [read](https://example.com) <script>bad()</script>" } as PostDetail["blocks"][number]] })
-    expect(missing.image).toBe(sites.archives.origin + sites.archives.image)
+    expect(missing.image).toBe(sites.archives.image)
     expect(missing.description).toBe("Summary read")
     expect(productMetadata({ ...product, images: [], short_description: "", description: "" }).description).toBe(sites.storefront.description)
     const unsafe = productMetadata({ ...product, name: 'Oil " /><img src=x onerror=alert(1)><script>alert(2)</script>', short_description: '" /><meta name="evil"> Safe & sound' })
@@ -66,7 +69,7 @@ describe("page metadata", () => {
     const pending = beginMetadata("archives", "/posts/pending")
     beginMetadata("archives", "/")
     pending(articleMetadata(article))
-    expect(content("og:image")).toBe(sites.archives.origin + sites.archives.image)
+    expect(content("og:image")).toBe(sites.archives.image)
     expect(content("og:type")).toBe("website")
     expect(content("article:published_time")).toBeUndefined()
   })
@@ -83,7 +86,7 @@ describe("page metadata", () => {
       await router.push(`/${prefix}/second`)
       expect(content("og:title")).toBe("second")
       await router.push("/")
-      expect(content("og:image")).toBe(sites[site].origin + sites[site].image)
+      expect(content("og:image")).toBe(sites[site].image)
       await new Promise<void>((resolve) => { const remove = router.afterEach(() => { remove(); resolve() }); router.back() })
       expect(canonical()).toBe(sites[site].origin + `/${prefix}/second`)
       await new Promise<void>((resolve) => { const remove = router.afterEach(() => { remove(); resolve() }); router.forward() })

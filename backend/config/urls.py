@@ -5,6 +5,7 @@ from django.http import JsonResponse
 from django.urls import include, path, re_path
 from django.views.static import serve as serve_media
 from .seo import product_page, post_page
+from .share_images import share_image
 
 admin.site.site_header = "OrganicEmperor.com Administration"
 admin.site.site_title = "OrganicEmperor.com Admin"
@@ -26,6 +27,10 @@ def api_root(request):
 
 
 urlpatterns = [
+    path("site/storefront/share-image.png", share_image, {"site": "storefront"}, name="seo-storefront-image"),
+    path("site/archives/share-image.png", share_image, {"site": "archives"}, name="seo-archives-image"),
+    path("site/storefront/products/<slug:slug>/share-image.png", share_image, {"site": "storefront"}, name="seo-product-image"),
+    path("site/archives/posts/<slug:slug>/share-image.png", share_image, {"site": "archives"}, name="seo-post-image"),
     path("site/storefront/products/<slug:slug>", product_page, name="seo-product"),
     path("site/archives/posts/<slug:slug>", post_page, name="seo-post"),
     path("", lambda request: JsonResponse({
