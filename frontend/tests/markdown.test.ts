@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest"
 
-import { isSafeMarkdownLink, renderMarkdown } from "./markdown"
+import { isSafeMarkdownLink, renderMarkdown } from "../src/archives/markdown"
 
 describe("Archives Markdown rendering", () => {
   it("renders common Markdown and working links", () => {

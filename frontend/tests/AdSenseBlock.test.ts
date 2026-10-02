@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { createApp, nextTick, type App } from "vue"
-import AdSenseBlock from "./AdSenseBlock.vue"
+import AdSenseBlock from "../src/components/adsense/AdSenseBlock.vue"
 
 type AdWindow = Window & { adsbygoogle?: object[] }
 let app: App | undefined

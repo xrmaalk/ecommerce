@@ -5,6 +5,20 @@ Options -Indexes
   RewriteBase /
   # Missing hashed assets must return 404 instead of the SPA HTML document.
   RewriteRule ^assets/ - [L]
+  # These fixed upstreams serve the Vue shell with public metadata for EVERY visitor.
+  # Hosting must enable HTTPS reverse proxying (see docs/SEO_DEPLOYMENT.md).
+  RewriteCond %{HTTP_HOST} ^(www\.)?organicemperor\.com$ [NC]
+  RewriteRule ^products/([A-Za-z0-9_-]+)/$ https://organicemperor.com/products/$1 [R=308,L]
+  RewriteCond %{HTTP_HOST} ^organicarchives\.organicemperor\.com$ [NC]
+  RewriteRule ^posts/([A-Za-z0-9_-]+)/$ https://organicarchives.organicemperor.com/posts/$1 [R=308,L]
+  RewriteCond %{HTTP_HOST} ^(www\.)?organicemperor\.com$ [NC]
+  RewriteRule ^products/([A-Za-z0-9_-]+)$ https://api.organicemperor.com/site/storefront/products/$1 [P,L]
+  RewriteCond %{HTTP_HOST} ^organicarchives\.organicemperor\.com$ [NC]
+  RewriteRule ^posts/([A-Za-z0-9_-]+)$ https://api.organicemperor.com/site/archives/posts/$1 [P,L]
+  RewriteCond %{HTTP_HOST} ^(www\.)?organicemperor\.com$ [NC]
+  RewriteRule ^products/ - [R=404,L]
+  RewriteCond %{HTTP_HOST} ^organicarchives\.organicemperor\.com$ [NC]
+  RewriteRule ^posts/ - [R=404,L]
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteCond %{REQUEST_FILENAME} !-d
   RewriteRule ^ index.html [L]

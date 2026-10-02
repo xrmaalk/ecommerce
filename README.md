@@ -33,6 +33,11 @@ Create a clean backend archive from the repository root with:
 python scripts/package_backend.py
 ```
 
+Run `python scripts/package_frontends.py` first so the backend includes matching
+built HTML shells for product/article sharing. See [SEO deployment and public
+URL routing](docs/SEO_DEPLOYMENT.md) for the required hosting proxy configuration
+and raw HTML verification.
+
 The script uses Git's `.gitignore` rules, includes tracked files and new
 non-ignored source files, and excludes local databases, environment files,
 uploads, collected static files, caches, logs, and ZIP files. It writes

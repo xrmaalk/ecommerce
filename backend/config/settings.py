@@ -91,6 +91,9 @@ STORAGES = {
 MEDIA_URL = "/media/"
 MEDIA_ROOT = Path(os.environ.get("DJANGO_MEDIA_ROOT", BASE_DIR / "media"))
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+SEO_SHELL_DIR = BASE_DIR / "site_shells"
+SEO_MEDIA_ORIGIN = os.environ.get("SEO_MEDIA_ORIGIN", "https://api.organicemperor.com").rstrip("/")
+SEO_IMAGE_ORIGINS = [origin.strip().rstrip("/") for origin in os.environ.get("SEO_IMAGE_ORIGINS", "").split(",") if origin.strip()]
 CORS_ALLOWED_ORIGINS = [origin.strip() for origin in os.environ.get(
     "CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:5174,http://127.0.0.1:5174,https://organicemperor.com,https://www.organicemperor.com,https://stagging.organicemperor.com,https://organicarchives.organicemperor.com").split(",") if origin.strip()]
 CORS_ALLOW_CREDENTIALS = True

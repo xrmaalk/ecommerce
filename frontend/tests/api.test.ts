@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { ArchiveError, getArchive, getArchivePreview, publisherUrl } from "./api"
+import { ArchiveError, getArchive, getArchivePreview, publisherUrl } from "../src/archives/api"
 
 afterEach(() => { vi.unstubAllGlobals() })
 describe("Archives preview requests", () => {

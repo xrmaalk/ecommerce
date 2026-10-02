@@ -2,12 +2,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { createApp, defineComponent, h, nextTick, reactive, type App } from "vue"
 import { AxiosError } from "axios"
-import type { Product, ProductVariant } from "../types/catalog"
-import ProductDetailView from "./ProductDetailView.vue"
+import type { Product, ProductVariant } from "../src/types/catalog"
+import ProductDetailView from "../src/views/ProductDetailView.vue"
 
 const mocks = vi.hoisted(() => ({ get: vi.fn(), add: vi.fn(), open: vi.fn(), route: { params: { slug: "body-oil" } } }))
-vi.mock("../api/client", () => ({ api: { get: mocks.get } }))
-vi.mock("../stores/bag", () => ({ useBagStore: () => ({ add: mocks.add, open: mocks.open }) }))
+vi.mock("../src/api/client", () => ({ api: { get: mocks.get } }))
+vi.mock("../src/stores/bag", () => ({ useBagStore: () => ({ add: mocks.add, open: mocks.open }) }))
 vi.mock("vue-router", () => ({ useRoute: () => mocks.route }))
 
 const product: Product = {
@@ -181,5 +181,20 @@ describe("Product detail page", () => {
     await flush()
     expect(container.querySelector("h1")?.textContent).toBe("Tea")
     expect(document.title).toBe("Tea | OrganicEmperor.com")
+    expect(document.head.querySelector('meta[property="og:title"]')?.getAttribute("content")).toBe("Tea")
+    expect(document.head.querySelector('link[rel="canonical"]')?.getAttribute("href")).toBe("https://organicemperor.com/products/tea")
+  })
+
+  it("retains the canonical primary sharing image when the gallery changes", async () => {
+    mocks.get.mockResolvedValue({ data: product })
+    mount()
+    await flush()
+    expect(document.head.querySelector('meta[property="og:image"]')?.getAttribute("content")).toBe("https://api.organicemperor.com/oil-front.png")
+    const thumbnails = container.querySelectorAll<HTMLButtonElement>(".product-gallery__thumbnails button")
+    expect(thumbnails).toHaveLength(2)
+    thumbnails[1]!.click()
+    await flush()
+    expect(container.querySelector(".product-gallery__main img")?.getAttribute("src")).toBe("/oil-back.png")
+    expect(document.head.querySelector('meta[property="og:image"]')?.getAttribute("content")).toBe("https://api.organicemperor.com/oil-front.png")
   })
 })

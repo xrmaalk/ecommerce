@@ -21,6 +21,7 @@ import {
 } from "./readerApi"
 import { useArchiveReaderStore } from "./readerStore"
 import { renderMarkdown } from "./markdown"
+import { articleMetadata, beginMetadata, siteMetadata } from "../seo"
 
 const route = useRoute()
 const reader = useArchiveReaderStore()
@@ -79,6 +80,9 @@ async function load() {
   interactionError.value = ""
   commentBody.value = ""
   if (!preview.value) void reader.initialize()
+  const isPreview = preview.value
+  const path = isPreview ? `/preview/${encodeURIComponent(String(route.params.id))}` : `/posts/${encodeURIComponent(String(route.params.slug))}`
+  const updateMetadata = beginMetadata("archives", isPreview ? "/" : path)
   try {
     const slug = String(route.params.slug)
     const data = preview.value ? await getArchivePreview(String(route.params.id), request.signal) : await getArchive<PostDetail>(
@@ -87,19 +91,11 @@ async function load() {
     )
     if (request.signal.aborted) return
     post.value = data
-    document.title = `${preview.value ? 'Preview: ' : ''}${data.title} | OrganicArchives`
-    document
-      .querySelector('meta[name="description"]')
-      ?.setAttribute("content", preview.value ? "Private editorial preview." : data.excerpt)
-    document
-      .querySelector('meta[property="og:title"]')
-      ?.setAttribute("content", document.title)
-    document
-      .querySelector('meta[property="og:description"]')
-      ?.setAttribute("content", preview.value ? "Private editorial preview." : data.excerpt)
-    document
-      .querySelector('meta[property="og:type"]')
-      ?.setAttribute("content", "article")
+    if (isPreview) {
+      const metadata = siteMetadata("archives", "/", `Preview: ${data.title} | OrganicArchives`)
+      metadata.description = "Private editorial preview."
+      updateMetadata(metadata)
+    } else updateMetadata(articleMetadata(data as PostDetail))
     if (!preview.value) void loadEngagement(slug)
   } catch (error) {
     if (!request.signal.aborted) {

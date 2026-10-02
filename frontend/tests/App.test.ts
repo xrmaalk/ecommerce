@@ -1,17 +1,17 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from "vitest"
 import { createApp, defineComponent, h, nextTick, reactive } from "vue"
-import App from "./App.vue"
+import App from "../src/archives/App.vue"
 
 const mocks = vi.hoisted(() => ({
   initialize: vi.fn(), route: { name: undefined as string | undefined },
 }))
 vi.mock("vue-router", () => ({ useRoute: () => mocks.route }))
-vi.mock("./readerStore", () => ({ useArchiveReaderStore: () => ({
+vi.mock("../src/archives/readerStore", () => ({ useArchiveReaderStore: () => ({
   initialize: mocks.initialize, isAuthenticated: false, notifications: { unread_count: 0 },
 }) }))
-vi.mock("./ArchiveThemeToggle.vue", () => ({ default: { template: "<button>Theme</button>" } }))
-vi.mock("../components/adsense/AdSenseBlock.vue", () => ({ default: { template: '<aside class="test-ad" />' } }))
+vi.mock("../src/archives/ArchiveThemeToggle.vue", () => ({ default: { template: "<button>Theme</button>" } }))
+vi.mock("../src/components/adsense/AdSenseBlock.vue", () => ({ default: { template: '<aside class="test-ad" />' } }))
 
 describe("Archives preview shell", () => {
   it("waits for the route and keeps reader initialization and adverts out of previews", async () => {

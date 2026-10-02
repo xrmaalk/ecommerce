@@ -1,22 +1,22 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { createApp, defineComponent, h, nextTick, reactive, type App } from "vue"
-import { ArchiveError, type PostPreview } from "./api"
-import PostView from "./PostView.vue"
+import { ArchiveError, type PostPreview } from "../src/archives/api"
+import PostView from "../src/archives/PostView.vue"
 
 const mocks = vi.hoisted(() => ({
   getArchive: vi.fn(), getPreview: vi.fn(), getEngagement: vi.fn(), initialize: vi.fn(),
   route: { name: "preview", params: { id: "7", slug: "private-release" }, fullPath: "/preview/7" },
 }))
 vi.mock("vue-router", () => ({ useRoute: () => mocks.route }))
-vi.mock("./api", async (importOriginal) => ({
-  ...await importOriginal<typeof import("./api")>(),
+vi.mock("../src/archives/api", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../src/archives/api")>(),
   getArchive: mocks.getArchive, getArchivePreview: mocks.getPreview,
 }))
-vi.mock("./readerApi", async (importOriginal) => ({
-  ...await importOriginal<typeof import("./readerApi")>(), getPostEngagement: mocks.getEngagement,
+vi.mock("../src/archives/readerApi", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../src/archives/readerApi")>(), getPostEngagement: mocks.getEngagement,
 }))
-vi.mock("./readerStore", () => ({ useArchiveReaderStore: () => ({
+vi.mock("../src/archives/readerStore", () => ({ useArchiveReaderStore: () => ({
   initialize: mocks.initialize, isAuthenticated: false, notifications: { unread_count: 0 },
 }) }))
 
@@ -52,6 +52,22 @@ beforeEach(() => {
 afterEach(() => { app?.unmount(); container?.remove(); vi.restoreAllMocks() })
 
 describe("Archives draft preview", () => {
+  it("updates public article metadata and ignores delayed responses from an older article", async () => {
+    let resolveFirst!: (value: unknown) => void
+    mocks.route.name = "post"
+    mocks.route.fullPath = "/posts/private-release"
+    mocks.getArchive.mockImplementationOnce(() => new Promise((resolve) => { resolveFirst = resolve }))
+      .mockResolvedValueOnce({ ...draft, title: "Second article", slug: "second", cover_image: "/second-cover.png", published_at: "2026-10-01T12:00:00Z" })
+    mount()
+    mocks.route.params.slug = "second"
+    await flush()
+    resolveFirst({ ...draft, published_at: "2026-10-01T12:00:00Z" })
+    await flush()
+    expect(document.head.querySelector('meta[property="og:title"]')?.getAttribute("content")).toBe("Second article")
+    expect(document.head.querySelector('meta[property="og:image"]')?.getAttribute("content")).toBe("https://api.organicemperor.com/second-cover.png")
+    expect(document.head.querySelector('link[rel="canonical"]')?.getAttribute("href")).toBe("https://organicarchives.organicemperor.com/posts/second")
+  })
+
   it("shows the saved draft with shared Markdown and media rendering, without reader interactions", async () => {
     mount()
     await flush()

@@ -228,6 +228,13 @@ def main() -> int:
             temporary_path = prepare_archive(source, output, files)
             prepared.append((distribution, temporary_path, output, files))
 
+        # Import lazily: seo_shells also reuses this module's asset validation.
+        if __package__:
+            from .seo_shells import write_shells
+        else:
+            from seo_shells import write_shells
+        write_shells(repository)
+
         for _, temporary_path, output, _ in prepared:
             os.replace(temporary_path, output)
 
@@ -238,7 +245,7 @@ def main() -> int:
                 f"Size: {size_kib:.1f} KiB"
             )
             print(f"SHA-256: {sha256(output)}")
-    except (OSError, PackagingError) as error:
+    except (OSError, ValueError, PackagingError) as error:
         for _, temporary_path, _, _ in prepared:
             temporary_path.unlink(missing_ok=True)
         print(f"error: {error}", file=sys.stderr)

@@ -1,0 +1,177 @@
+import tempfile
+from datetime import timedelta
+from html.parser import HTMLParser
+from io import BytesIO
+from pathlib import Path
+from urllib.parse import urlsplit
+
+from PIL import Image
+from django.conf import settings
+from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import Client, RequestFactory, TestCase, override_settings
+from django.urls import resolve
+from django.utils import timezone
+
+from archives.models import Post, PostBlock
+from catalog.models import Category, Product, ProductImage
+from .seo import plain_text, safe_image
+
+
+class Head(HTMLParser):
+    def __init__(self, html):
+        super().__init__(convert_charrefs=True)
+        self.values = {}
+        self.nodes = []
+        self.in_title = False
+        self.feed(html)
+
+    def add(self, key, value):
+        self.values.setdefault(key, []).append(value)
+
+    def handle_starttag(self, tag, attributes):
+        attrs = dict(attributes)
+        self.nodes.append((tag, attrs))
+        self.in_title = tag == "title"
+        if tag == "meta":
+            self.add(attrs.get("property") or attrs.get("name"), attrs.get("content"))
+        if tag == "link" and attrs.get("rel") == "canonical":
+            self.add("canonical", attrs.get("href"))
+
+    def handle_endtag(self, tag):
+        if tag == "title":
+            self.in_title = False
+
+    def handle_data(self, data):
+        if self.in_title:
+            self.add("title", data)
+
+
+class PublicMetadataTests(TestCase):
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.directory.cleanup)
+        root = Path(self.directory.name)
+        shells = root / "shells"
+        shells.mkdir()
+        frontend = Path(settings.BASE_DIR).parent / "frontend"
+        for site, source in (("storefront", frontend / "index.html"), ("archives", frontend / "archives" / "index.html")):
+            (shells / f"{site}.html").write_bytes(source.read_bytes())
+        override = override_settings(SEO_SHELL_DIR=shells, MEDIA_ROOT=root / "media", ALLOWED_HOSTS=["testserver", "other.example"])
+        override.enable()
+        self.addCleanup(override.disable)
+        category = Category.objects.create(name="Care", slug="care")
+        self.product = Product.objects.create(name='Oil "calm" & care', slug="oil", sku="oil", category=category, price_cad="20", short_description="<b>Gentle</b> daily care")
+        self.post = Post.objects.create(title="An article", slug="article", excerpt="Public excerpt", author_name="Editor", status=Post.Status.PUBLISHED, published_at=timezone.now() - timedelta(days=1))
+
+    def image(self, name):
+        content = BytesIO()
+        Image.new("RGB", (16, 24)).save(content, format="PNG")
+        return SimpleUploadedFile(name, content.getvalue(), content_type="image/png")
+
+    def parsed(self, path, status=200, **kwargs):
+        response = self.client.get(path, **kwargs)
+        self.assertEqual(response.status_code, status)
+        self.assertIn("no-store", response["Cache-Control"])
+        self.assertEqual(response["X-Content-Type-Options"], "nosniff")
+        head = Head(response.content.decode())
+        for key in ("title", "description", "canonical", "author", "og:title", "og:description", "og:url", "og:type", "og:site_name", "og:image", "og:image:alt", "twitter:card", "twitter:title", "twitter:description", "twitter:image", "twitter:image:alt"):
+            self.assertEqual(len(head.values.get(key, [])), 1, key)
+        self.assertIn(b"ca-pub-5910683856071010", response.content)
+        self.assertIn(b'name="viewport"', response.content)
+        return response, head
+
+    def test_raw_product_html_uses_reader_primary_image_and_public_origin(self):
+        ProductImage.objects.create(product=self.product, image=self.image("secondary.png"), sort_order=5, alt_text="Second")
+        primary = ProductImage.objects.create(product=self.product, image=self.image("primary.png"), sort_order=0, alt_text='Front "oil"')
+        ProductImage.objects.create(product=self.product, image=self.image("same-order.png"), sort_order=0)
+        response, head = self.parsed("/site/storefront/products/oil", HTTP_HOST="other.example")
+        self.assertEqual(head.values["og:title"], [self.product.name])
+        self.assertEqual(head.values["description"], ["Gentle daily care"])
+        self.assertEqual(head.values["canonical"], ["https://organicemperor.com/products/oil"])
+        self.assertEqual(head.values["og:image"], ["https://api.organicemperor.com" + primary.image.url])
+        self.assertEqual(head.values["og:image:alt"], ['Front "oil"'])
+        self.assertEqual(head.values["og:site_name"], ["OrganicEmperor"])
+        self.assertEqual(head.values["author"], ["MK SourceCodeX"])
+        self.assertNotIn("article:author", head.values)
+        # Exercise the actual media URL's public handler with isolated test storage.
+        path = urlsplit(head.values["og:image"][0]).path
+        match = resolve(path)
+        arguments = {**match.kwargs, "document_root": settings.MEDIA_ROOT}
+        media = match.func(RequestFactory().get(path), **arguments)
+        self.assertEqual(media.status_code, 200)
+        self.assertEqual(media["Content-Type"], "image/png")
+        self.assertTrue(b"".join(media.streaming_content).startswith(b"\x89PNG"))
+        media.close()
+        self.assertEqual(self.client.head("/site/storefront/products/oil").status_code, 200)
+        self.assertEqual(self.client.post("/site/storefront/products/oil").status_code, 405)
+
+    def test_raw_article_uses_cover_and_only_public_author_dates(self):
+        self.post.cover_image = self.image("cover.png")
+        self.post.cover_alt = "Main cover"
+        self.post.save()
+        _, head = self.parsed("/site/archives/posts/article")
+        self.assertEqual(head.values["og:image"], ["https://api.organicemperor.com" + self.post.cover_image.url])
+        self.assertEqual(head.values["og:type"], ["article"])
+        self.assertEqual(head.values["article:author"], ["Editor"])
+        self.assertEqual(head.values["article:published_time"], [self.post.published_at.isoformat()])
+        self.assertEqual(head.values["article:modified_time"], [self.post.updated_at.isoformat()])
+        self.assertEqual(head.values["canonical"], ["https://organicarchives.organicemperor.com/posts/article"])
+
+    def test_fallbacks_and_plain_text_summary(self):
+        self.product.short_description = ""
+        self.product.description = ""
+        self.product.save()
+        _, head = self.parsed("/site/storefront/products/oil")
+        self.assertEqual(head.values["og:image"], ["https://organicemperor.com/organic-emperor-emblem.png"])
+        self.assertIn("Quality body care", head.values["description"][0])
+        self.post.excerpt = ""
+        self.post.save()
+        PostBlock.objects.create(post=self.post, kind="text", text="**A summary** [read](https://example.com) <script>bad()</script>")
+        _, head = self.parsed("/site/archives/posts/article")
+        self.assertEqual(head.values["description"], ["A summary read"])
+        self.assertEqual(head.values["og:image"], ["https://organicarchives.organicemperor.com/OA-Emblem-BBG.png"])
+
+    def test_inactive_draft_future_undated_and_missing_content_are_404_for_staff_too(self):
+        user = get_user_model().objects.create_user(username="staff", is_staff=True)
+        self.client.force_login(user)
+        self.product.is_active = False
+        self.product.save()
+        response, _ = self.parsed("/site/storefront/products/oil", 404)
+        self.assertNotIn(self.product.name.encode(), response.content)
+        for status, date in ((Post.Status.DRAFT, timezone.now()), (Post.Status.PUBLISHED, timezone.now() + timedelta(days=1)), (Post.Status.PUBLISHED, None)):
+            self.post.status, self.post.published_at = status, date
+            self.post.save()
+            response, _ = self.parsed("/site/archives/posts/article", 404)
+            self.assertNotIn(b"Public excerpt", response.content)
+            self.assertNotIn(b'content="Editor"', response.content)
+        self.parsed("/site/archives/posts/absent", 404)
+        self.parsed("/site/storefront/products/absent", 404)
+
+    def test_edits_and_withdrawal_are_immediate_without_shared_cache(self):
+        self.parsed("/site/archives/posts/article")
+        self.post.title = "Revised article"
+        self.post.save()
+        _, head = self.parsed("/site/archives/posts/article")
+        self.assertEqual(head.values["og:title"], ["Revised article"])
+        self.post.status = Post.Status.DRAFT
+        self.post.save()
+        response, _ = self.parsed("/site/archives/posts/article", 404)
+        self.assertNotIn(b"Revised article", response.content)
+
+    def test_untrusted_text_is_inert_and_bad_image_urls_fall_back(self):
+        self.product.name = 'Oil " /><img src=x onerror=alert(1)> <script>alert(2)</script>'
+        self.product.short_description = '" /><meta name="evil" content="injected"> Safe & sound'
+        self.product.save()
+        _, head = self.parsed("/site/storefront/products/oil")
+        self.assertFalse(any(tag == "img" or attrs.get("name") == "evil" or "onerror" in attrs for tag, attrs in head.nodes))
+        self.assertNotIn("alert", head.values["og:title"][0])
+        fallback = "https://organicemperor.com/organic-emperor-emblem.png"
+        for url in ("javascript:alert(1)", "data:image/png;base64,a", "//evil.example/a.png", "https://api.organicemperor.com@evil.example/a", "http://api.organicemperor.com/a", "https://evil.example/a", "https://api.organicemperor.com/a\n"):
+            self.assertEqual(safe_image(url, fallback), fallback)
+        self.assertEqual(plain_text("<p>One</p><p>two</p>"), "One two")
+
+    def test_missing_shell_fails_closed_for_public_content(self):
+        with override_settings(SEO_SHELL_DIR=Path(self.directory.name) / "missing"):
+            self.assertEqual(self.client.get("/site/storefront/products/oil").status_code, 503)
+            self.assertEqual(self.client.get("/site/storefront/products/absent").status_code, 404)

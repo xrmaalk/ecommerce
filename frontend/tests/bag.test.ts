@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { createPinia, setActivePinia } from "pinia"
-import type { Product, ProductVariant } from "../types/catalog"
-import { useBagStore } from "./bag"
+import type { Product, ProductVariant } from "../src/types/catalog"
+import { useBagStore } from "../src/stores/bag"
 
 const mocks = vi.hoisted(() => ({ put: vi.fn(), post: vi.fn(), authenticated: false }))
-vi.mock("../api/client", () => ({ api: { put: mocks.put, post: mocks.post }, getApiErrorMessage: () => "Unable to save this variation." }))
-vi.mock("./auth", () => ({ useAuthStore: () => ({ isAuthenticated: mocks.authenticated }) }))
+vi.mock("../src/api/client", () => ({ api: { put: mocks.put, post: mocks.post }, getApiErrorMessage: () => "Unable to save this variation." }))
+vi.mock("../src/stores/auth", () => ({ useAuthStore: () => ({ isAuthenticated: mocks.authenticated }) }))
 const small: ProductVariant = { id: 10, sku: "S-RED", size: "Small", color: "Red", label: "", name: "Size: Small / Color: Red", price_cad: "20.00", inventory_quantity: 2, track_inventory: true, in_stock: true }
 const large: ProductVariant = { ...small, id: 11, sku: "L-RED", size: "Large", name: "Size: Large / Color: Red", price_cad: "30.00", inventory_quantity: 5 }
 const product: Product = { id: 1, name: "Shirt", slug: "shirt", sku: "SHIRT", category: { id: 1, name: "Clothing", slug: "clothing", description: "" }, short_description: "", description: "", price_cad: "15.00", compare_at_price_cad: null, inventory_quantity: 0, track_inventory: true, in_stock: true, is_featured: false, images: [], has_variants: true, variants: [small, large] }

@@ -9,6 +9,8 @@ staticfiles/
 node_modules/
 dist/
 dist-archives/
+site_shells/
+.seo-verification/
 .archives-preview.sqlite3
 .DS_Store
 *.zip

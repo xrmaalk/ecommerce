@@ -4,6 +4,7 @@ from django.contrib import admin
 from django.http import JsonResponse
 from django.urls import include, path, re_path
 from django.views.static import serve as serve_media
+from .seo import product_page, post_page
 
 admin.site.site_header = "OrganicEmperor.com Administration"
 admin.site.site_title = "OrganicEmperor.com Admin"
@@ -25,6 +26,8 @@ def api_root(request):
 
 
 urlpatterns = [
+    path("site/storefront/products/<slug:slug>", product_page, name="seo-product"),
+    path("site/archives/posts/<slug:slug>", post_page, name="seo-post"),
     path("", lambda request: JsonResponse({
         "service": "OrganicEmperor.com Commerce API",
         "status": "online",

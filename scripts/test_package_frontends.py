@@ -17,6 +17,7 @@ class FrontendPackagingTests(unittest.TestCase):
         (source / "assets" / f"{entry}.css").write_text("body {}", encoding="utf-8")
         (source / ".htaccess").write_text("Options -Indexes\n", encoding="utf-8")
         (source / "index.html").write_text(
+            '<!-- page-metadata:start --><title>Brand</title><!-- page-metadata:end -->'
             f'<script type="module" src="/assets/{entry}.js"></script>'
             f'<link rel="stylesheet" href="/assets/{entry}.css">'
             '<script src="https://example.com/ad.js"></script>', encoding="utf-8",
@@ -62,6 +63,9 @@ class FrontendPackagingTests(unittest.TestCase):
             for distribution in packager.DISTRIBUTIONS:
                 with zipfile.ZipFile(root / distribution.archive_name) as archive:
                     self.assertIn(b"fresh-from-build.js", archive.read("index.html"))
+            for site, distribution in (("storefront", "dist"), ("archives", "dist-archives")):
+                self.assertEqual((root / "backend" / "site_shells" / f"{site}.html").read_bytes(),
+                                 (root / "frontend" / distribution / "index.html").read_bytes())
 
     def test_build_failure_preserves_existing_archives(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -85,6 +89,35 @@ class FrontendPackagingTests(unittest.TestCase):
             for distribution in packager.DISTRIBUTIONS:
                 self.assertEqual((root / distribution.archive_name).read_bytes(), b"old archive")
             self.assertEqual(list(root.glob(".*.tmp")), [])
+
+    def test_generated_shells_are_explicitly_packaged_and_stale_shells_are_rejected(self):
+        from scripts.seo_shells import packaged_shells, write_shells
+        from scripts.package_backend import write_archive
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for distribution in packager.DISTRIBUTIONS:
+                self.make_distribution(root, distribution.source_name)
+            write_shells(root)
+            files = packaged_shells(root)
+            write_archive(root, root / "backend.zip", files)
+            with zipfile.ZipFile(root / "backend.zip") as archive:
+                self.assertEqual(set(archive.namelist()), {"backend/site_shells/storefront.html", "backend/site_shells/archives.html"})
+            (root / "backend/site_shells/archives.html").write_text("stale", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "do not match"):
+                packaged_shells(root)
+
+    def test_missing_metadata_markers_cannot_replace_existing_frontend_archives(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for distribution in packager.DISTRIBUTIONS:
+                (root / distribution.archive_name).write_bytes(b"old archive")
+                self.make_distribution(root, distribution.source_name)
+            index = root / "frontend/dist-archives/index.html"
+            index.write_bytes(index.read_bytes().replace(b"<!-- page-metadata:start -->", b""))
+            with patch.object(packager, "repository_root", return_value=root), patch.object(packager, "run_frontend_build"), patch("sys.argv", ["package_frontends.py"]):
+                self.assertEqual(packager.main(), 1)
+            for distribution in packager.DISTRIBUTIONS:
+                self.assertEqual((root / distribution.archive_name).read_bytes(), b"old archive")
 
 
 if __name__ == "__main__":

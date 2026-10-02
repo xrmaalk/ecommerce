@@ -14,9 +14,13 @@ The active environment must define `VITE_API_BASE_URL`. Production currently tar
 ## Validation and build
 
 ```bash
+npm test
 npm run typecheck
 npm run build
 ```
+
+All frontend tests live in `tests/`. Vitest discovers the `*.test.ts` files there,
+and `npm run typecheck` checks them alongside the application sources.
 
 Upload the contents of `dist/` to the frontend document root. The included `.htaccess` enables Vue Router history fallback and adds baseline browser security headers on Apache/DirectAdmin hosting.
 
@@ -28,6 +32,12 @@ Upload the contents of `dist/` to the frontend document root. The included `.hta
 - `src/composables/` — reusable formatting and debounce helpers
 - `src/styles/` — design tokens and scoped style modules
 - `src/types/` — API and bag TypeScript contracts
+- `tests/` — storefront and OrganicArchives frontend tests
+- `src/seo.ts` — shared safe metadata updates; public HTML comes from Django
+
+See [SEO deployment](../docs/SEO_DEPLOYMENT.md). Product and article sharing
+requires the public-domain proxy rules and matching backend HTML shells as well
+as the frontend build. A browser head update alone does not update crawler previews.
 
 The shopping bag is persisted locally, validates restored data, respects inventory limits, and supports accessible increment, decrement, and removal controls. Checkout and authenticated account functions remain intentionally disabled until their secure Django endpoints are connected.
 

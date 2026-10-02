@@ -6,6 +6,7 @@ import { api } from "../api/client"
 import { formatCad } from "../composables/useCurrency"
 import { useBagStore } from "../stores/bag"
 import type { Product } from "../types/catalog"
+import { beginMetadata, productMetadata, siteMetadata } from "../seo"
 
 const route = useRoute()
 const bag = useBagStore()
@@ -40,17 +41,18 @@ async function loadProduct() {
   loading.value = true
   error.value = ""
   notFound.value = false
-  document.title = "Product | OrganicEmperor.com"
+  const path = `/products/${encodeURIComponent(String(route.params.slug))}`
+  const updateMetadata = beginMetadata("storefront", path, "Product | OrganicEmperor.com")
   try {
     const { data } = await api.get<Product>(`/products/${encodeURIComponent(String(route.params.slug))}/`, { signal: request.signal })
     if (controller !== request) return
     product.value = data
-    document.title = `${data.name} | OrganicEmperor.com`
+    updateMetadata(productMetadata(data))
   } catch (requestError) {
     if (controller !== request || axios.isCancel(requestError)) return
     notFound.value = axios.isAxiosError(requestError) && requestError.response?.status === 404
     error.value = notFound.value ? "This product is no longer available." : "We could not load this product. Please try again."
-    if (notFound.value) document.title = "Product Not Found | OrganicEmperor.com"
+    if (notFound.value) updateMetadata(siteMetadata("storefront", path, "Product Not Found | OrganicEmperor.com"))
   } finally {
     if (controller === request) loading.value = false
   }

@@ -215,8 +215,13 @@ def main() -> int:
                 f"{output.name} already exists. Use --force to replace it."
             )
         files = backend_files(repository)
+        if __package__:
+            from .seo_shells import packaged_shells
+        else:
+            from seo_shells import packaged_shells
+        files.extend(packaged_shells(repository))
         write_archive(repository, output, files)
-    except PackagingError as error:
+    except (OSError, ValueError, RuntimeError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
 

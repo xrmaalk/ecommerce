@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from "vue-router"
 import { useAuthStore } from "../stores/auth"
+import { beginMetadata } from "../seo"
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -85,9 +86,10 @@ router.beforeEach(async (to) => {
   }
 })
 
-router.afterEach((to) => {
+router.afterEach((to, _from, failure) => {
+  if (failure) return
   const brand = "OrganicEmperor.com"
-  document.title = to.meta.title ? `${String(to.meta.title)} | ${brand}` : brand
+  beginMetadata("storefront", to.path, to.meta.title ? `${String(to.meta.title)} | ${brand}` : undefined)
 })
 
 export default router

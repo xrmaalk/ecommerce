@@ -5,6 +5,7 @@ import { useThemeStore } from "../../src/stores/theme"
 import App from "../../src/archives/App.vue"
 import FeedView from "../../src/archives/FeedView.vue"
 import "../../src/archives/archives.css"
+import { beginMetadata } from "../../src/seo"
 
 const router = createRouter({
   history: createWebHistory(),
@@ -33,7 +34,8 @@ const router = createRouter({
   ],
   scrollBehavior: (_to, _from, saved) => saved ?? { top: 0 },
 })
-router.afterEach((to) => {
+router.afterEach((to, _from, failure) => {
+  if (failure) return
   let robots = document.querySelector<HTMLMetaElement>('meta[name="robots"]')
   if (to.name === "preview") {
     if (!robots) {
@@ -45,25 +47,7 @@ router.afterEach((to) => {
   } else {
     robots?.remove()
   }
-  document.title = "OrganicArchives | OrganicEmperor"
-  document
-    .querySelector('meta[name="description"]')
-    ?.setAttribute(
-      "content",
-      "Articles, news releases, and updates from OrganicEmperor. Explore the OrganicArchives.",
-    )
-  document
-    .querySelector('meta[property="og:title"]')
-    ?.setAttribute("content", document.title)
-  document
-    .querySelector('meta[property="og:description"]')
-    ?.setAttribute(
-      "content",
-      "Articles, news releases, and updates from OrganicEmperor.",
-    )
-  document
-    .querySelector('meta[property="og:type"]')
-    ?.setAttribute("content", "website")
+  beginMetadata("archives", to.name === "preview" ? "/" : to.path)
 })
 const pinia = createPinia()
 const app = createApp(App).use(pinia)
