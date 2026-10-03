@@ -1,4 +1,4 @@
-.page-shell { width: min(var(--content), 100%); min-height: 30rem; padding: clamp(3rem, 7vw, 6rem) max(1rem, calc((100vw - var(--content)) / 2)); margin: 0 auto; }
+.page-shell { width: min(var(--content), 100%); min-height: 30rem; padding: clamp(3rem, 7vw, 6rem) 1rem; margin: 0 auto; }
 .page-heading { margin-bottom: 2rem; }
 .page-heading h1, .prose-page > h1, .not-found h1 { margin: 0; font: 500 clamp(3rem, 7vw, 5rem)/0.95 var(--serif); letter-spacing: -0.045em; }
 .page-heading > p:last-child { color: var(--muted); }

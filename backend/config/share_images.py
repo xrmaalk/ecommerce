@@ -16,20 +16,23 @@ PADDING = 48
 MAX_PIXELS = 25_000_000
 MAX_BYTES = 20 * 1024 * 1024
 BRANDS = {
-    "storefront": ("organic-emperor-emblem.png", "#09291f"),
-    "archives": ("OA-Emblem-BBG.png", "#000000"),
+    "storefront": ("organicemperor-purrcilla-preview.png", "#09291f"),
+    "archives": ("OA-dage-preview.png", "#000000"),
 }
 
 
 def render_card(source, background):
+    """Render a sharing card with the source image centered on a wide canvas."""
     with Image.open(source) as original:
         if original.width * original.height > MAX_PIXELS:
             raise ValueError("Sharing source exceeds the pixel limit")
         # Use the first frame, correct camera orientation, and preserve transparency.
         image = ImageOps.exif_transpose(original).convert("RGBA")
-    image = ImageOps.contain(image, (WIDTH - 2 * PADDING, HEIGHT - 2 * PADDING), Image.Resampling.LANCZOS)
+    image = ImageOps.contain(
+        image, (WIDTH - 2 * PADDING, HEIGHT - 2 * PADDING), Image.Resampling.LANCZOS)
     canvas = Image.new("RGB", (WIDTH, HEIGHT), background)
-    canvas.paste(image, ((WIDTH - image.width) // 2, (HEIGHT - image.height) // 2), image)
+    canvas.paste(image, ((WIDTH - image.width) // 2,
+                 (HEIGHT - image.height) // 2), image)
     output = BytesIO()
     canvas.save(output, format="PNG", optimize=True)
     return output.getvalue()
@@ -41,7 +44,8 @@ def share_image(request, site, slug=None):
     image = None
     if slug is not None:
         if site == "storefront":
-            item = Product.objects.filter(is_active=True, slug=slug).prefetch_related("images").first()
+            item = Product.objects.filter(
+                is_active=True, slug=slug).prefetch_related("images").first()
             primary = item.images.first() if item else None
             image = primary.image if primary else None
         else:
@@ -58,7 +62,8 @@ def share_image(request, site, slug=None):
             with image.open("rb") as source:
                 content = render_card(source, "#ffffff")
         except (OSError, ValueError, UnidentifiedImageError, Image.DecompressionBombError):
-            pass  # Missing/corrupt/oversized media uses the same safe brand fallback.
+            # Missing/corrupt/oversized media uses the same safe brand fallback.
+            pass
     if content is None:
         filename, background = BRANDS[site]
         try:

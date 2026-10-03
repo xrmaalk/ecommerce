@@ -21,14 +21,16 @@ SITES = {
     "storefront": {
         "origin": "https://organicemperor.com", "name": "OrganicEmperor",
         "title": "OrganicEmperor | Forever Wellness",
-        "description": "OrganicEmperor.com — Quality body care, must have shave essentials and comforting organic teas, soaps and wellness products.",
+        "description": "Quality body care, must have shave essentials, comforting organic teas, soap, de-odorant and wellness products.",
         "image": "https://api.organicemperor.com/site/storefront/share-image.png",
+        "image_alt": "OrganicEmperor Forever Wellness featuring Purrcilla and the BODIGLO emblem in an emerald-and-gold design.",
     },
     "archives": {
         "origin": "https://organicarchives.organicemperor.com", "name": "OrganicArchives",
         "title": "OrganicArchives | OrganicEmperor",
-        "description": "Articles, news releases, and updates from OrganicEmperor. Explore the OrganicArchives.",
+        "description": "Articles, news releases, and updates from OrganicEmperor.com Explore the OrganicArchives.",
         "image": "https://api.organicemperor.com/site/archives/share-image.png",
+        "image_alt": "OrganicArchives | OrganicEmperor",
     },
 }
 
@@ -71,7 +73,8 @@ def safe_image(value, fallback):
     if not value or re.search(r"[\x00-\x20\x7f\\]", str(value)):
         return fallback
     try:
-        url = urlsplit(urljoin(settings.SEO_MEDIA_ORIGIN.rstrip("/") + "/", str(value)))
+        url = urlsplit(
+            urljoin(settings.SEO_MEDIA_ORIGIN.rstrip("/") + "/", str(value)))
         trusted = {site["origin"] for site in SITES.values()}
         trusted.update(settings.SEO_IMAGE_ORIGINS)
         trusted.add(settings.SEO_MEDIA_ORIGIN.rstrip("/"))
@@ -89,8 +92,10 @@ def site_metadata(site, path="/"):
         "title": brand["title"], "social_title": brand["title"],
         "description": brand["description"], "canonical": brand["origin"] + path,
         "site_name": brand["name"], "type": "website",
-        "image": brand["image"], "image_alt": brand["name"] + " emblem",
+        "image": brand["image"], "image_alt": brand.get("image_alt", brand["name"] + " emblem"),
         "author": "MK SourceCodeX",
+        "date": "2026", "modified": "2026",
+        "article_author": "", "published": "2026",
     }
 
 
@@ -101,7 +106,8 @@ def share_image_url(site, kind, slug, source):
 
 
 def product_metadata(product):
-    data = site_metadata("storefront", "/products/" + quote(product.slug, safe=""))
+    data = site_metadata("storefront", "/products/" +
+                         quote(product.slug, safe=""))
     name = plain_text(product.name, 1000)
     data.update(title=f"{name} | OrganicEmperor.com", social_title=name,
                 description=plain_text(product.short_description) or plain_text(product.description) or data["description"])
@@ -110,7 +116,8 @@ def product_metadata(product):
     if image:
         source = safe_image(image.image.url, data["image"])
         if source != data["image"]:
-            data["image"] = share_image_url("storefront", "products", product.slug, source)
+            data["image"] = share_image_url(
+                "storefront", "products", product.slug, source)
             data["image_alt"] = plain_text(image.alt_text) or name
     return data
 
@@ -118,7 +125,8 @@ def product_metadata(product):
 def post_metadata(post):
     data = site_metadata("archives", "/posts/" + quote(post.slug, safe=""))
     title = plain_text(post.title, 1000)
-    summary = plain_text(post.excerpt) or plain_text(" ".join(block.text for block in post.blocks.all() if block.kind in ("text", "heading", "quote")))
+    summary = plain_text(post.excerpt) or plain_text(" ".join(
+        block.text for block in post.blocks.all() if block.kind in ("text", "heading", "quote")))
     data.update(title=f"{title} | OrganicArchives", social_title=title, type="article",
                 description=summary or data["description"],
                 author=plain_text(post.author_name) or "MK SourceCodeX",
@@ -128,7 +136,8 @@ def post_metadata(post):
     if post.cover_image:
         source = safe_image(post.cover_image.url, data["image"])
         if source != data["image"]:
-            data["image"] = share_image_url("archives", "posts", post.slug, source)
+            data["image"] = share_image_url(
+                "archives", "posts", post.slug, source)
             data["image_alt"] = plain_text(post.cover_alt) or title
     return data
 
@@ -172,7 +181,8 @@ def render_text_block(text):
             close_list()
             # Mirror the frontend: headings are demoted one level inside articles.
             level = min(len(heading.group(1)) + 1, 6)
-            parts.append(f"<h{level}>{inline_text(heading.group(2))}</h{level}>")
+            parts.append(
+                f"<h{level}>{inline_text(heading.group(2))}</h{level}>")
             continue
         bullet = re.match(r"^[-*]\s+(.*)$", line)
         ordered = re.match(r"^\d+[.)]\s+(.*)$", line)
@@ -186,7 +196,8 @@ def render_text_block(text):
         close_list()
         quote = re.match(r"^>\s?(.*)$", line)
         if quote:
-            parts.append(f"<blockquote><p>{inline_text(quote.group(1))}</p></blockquote>")
+            parts.append(
+                f"<blockquote><p>{inline_text(quote.group(1))}</p></blockquote>")
         else:
             parts.append(f"<p>{inline_text(line)}</p>")
     close_list()
@@ -255,16 +266,20 @@ def render_post_body(post):
         parts.append(f"<h1>{html.escape(title, quote=False)}</h1>")
     author = post.author_name
     if author or post.published_at:
-        byline = " · ".join(part for part in (author, post.published_at.date().isoformat() if post.published_at else "") if part)
-        parts.append(f'<p class="byline">{html.escape(byline, quote=False)}</p>')
+        byline = " · ".join(part for part in (author, post.published_at.date(
+        ).isoformat() if post.published_at else "") if part)
+        parts.append(
+            f'<p class="byline">{html.escape(byline, quote=False)}</p>')
     # The head has a short summary; the body retains the complete introduction
     # and plain-text fields, just as the Vue reader does.
     excerpt = post.excerpt
     if excerpt:
-        parts.append(f'<p class="excerpt">{html.escape(excerpt, quote=False)}</p>')
+        parts.append(
+            f'<p class="excerpt">{html.escape(excerpt, quote=False)}</p>')
     cover = absolute_media_url(post.cover_image)
     if cover:
-        parts.append(f'<figure class="reader-cover"><img src="{html.escape(cover, quote=True)}" alt="{html.escape(post.cover_alt, quote=True)}"></figure>')
+        parts.append(
+            f'<figure class="reader-cover"><img src="{html.escape(cover, quote=True)}" alt="{html.escape(post.cover_alt, quote=True)}"></figure>')
     for block in post.blocks.all():
         rendered = render_block(block)
         if rendered:
@@ -275,7 +290,8 @@ def render_post_body(post):
 
 def html_response(site, metadata, status=200, body_html=""):
     try:
-        shell = (Path(settings.SEO_SHELL_DIR) / f"{site}.html").read_bytes().decode("utf-8")
+        shell = (Path(settings.SEO_SHELL_DIR) /
+                 f"{site}.html").read_bytes().decode("utf-8")
         if shell.count(START) != 1 or shell.count(END) != 1:
             raise ValueError("Invalid metadata markers")
         if body_html and shell.count(APP_MOUNT) != 1:
@@ -283,7 +299,8 @@ def html_response(site, metadata, status=200, body_html=""):
         before, rest = shell.split(START)
         _, after = rest.split(END)
     except (OSError, ValueError):
-        logging.getLogger(__name__).error("Missing/invalid SEO shell for %s; package the frontend and backend together", site)
+        logging.getLogger(__name__).error(
+            "Missing/invalid SEO shell for %s; package the frontend and backend together", site)
         return HttpResponse("Page unavailable" if status == 404 else "Frontend build unavailable", status=404 if status == 404 else 503)
     # Django autoescapes both attribute values and title text. Shell scripts stay byte-for-byte intact.
     head = render_to_string("seo/head.html", metadata)
@@ -300,8 +317,10 @@ def html_response(site, metadata, status=200, body_html=""):
 @require_safe
 @never_cache
 def product_page(request, slug):
-    product = Product.objects.filter(is_active=True, slug=slug).prefetch_related("images").first()
-    metadata = product_metadata(product) if product else site_metadata("storefront", "/products/" + quote(slug, safe=""))
+    product = Product.objects.filter(
+        is_active=True, slug=slug).prefetch_related("images").first()
+    metadata = product_metadata(product) if product else site_metadata(
+        "storefront", "/products/" + quote(slug, safe=""))
     return html_response("storefront", metadata, 200 if product else 404)
 
 
@@ -309,7 +328,8 @@ def product_page(request, slug):
 @never_cache
 def post_page(request, slug):
     post = Post.objects.public().filter(slug=slug).prefetch_related("blocks").first()
-    metadata = post_metadata(post) if post else site_metadata("archives", "/posts/" + quote(slug, safe=""))
+    metadata = post_metadata(post) if post else site_metadata(
+        "archives", "/posts/" + quote(slug, safe=""))
     body_html = render_post_body(post) if post else ""
     return html_response("archives", metadata, 200 if post else 404, body_html)
 
@@ -322,9 +342,11 @@ ARCHIVES_ORIGIN = SITES["archives"]["origin"]
 def archives_sitemap(request):
     urls = [f"<url><loc>{ARCHIVES_ORIGIN}/</loc></url>"]
     for post in Post.objects.public().only("slug", "updated_at", "published_at").order_by("-published_at", "-id").iterator():
-        stamp = max(stamp for stamp in (post.updated_at, post.published_at) if stamp)
+        stamp = max(stamp for stamp in (
+            post.updated_at, post.published_at) if stamp)
         lastmod = f"<lastmod>{stamp.date().isoformat()}</lastmod>" if stamp else ""
-        loc = html.escape(f"{ARCHIVES_ORIGIN}/posts/{quote(post.slug, safe='')}", quote=True)
+        loc = html.escape(
+            f"{ARCHIVES_ORIGIN}/posts/{quote(post.slug, safe='')}", quote=True)
         urls.append(f"<url><loc>{loc}</loc>{lastmod}</url>")
     xml = (
         '<?xml version="1.0" encoding="UTF-8"?>'

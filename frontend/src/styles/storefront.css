@@ -14,7 +14,7 @@
 }
 .hero-copy {
   align-self: center;
-  width: min(42rem, 100%);
+  width: 100%;
   padding: clamp(4rem, 8vw, 7rem)
     max(1.25rem, calc((100vw - var(--content)) / 2));
   padding-right: 2rem;
@@ -79,68 +79,77 @@
   content: "✦";
 }
 .hero-art {
-  position: relative;
   display: grid;
   place-items: center;
-  min-height: 32rem;
+  min-width: 0;
+  padding: 3rem max(1.25rem, calc((100vw - var(--content)) / 2)) 3rem 1rem;
+}
+.hero-art__stage {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(8rem, 0.45fr);
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  max-width: 42rem;
   isolation: isolate;
 }
 .hero-art__halo {
   position: absolute;
-  width: min(35rem, 78%);
+  z-index: -1;
+  top: 50%;
+  left: 0;
+  width: 82%;
   aspect-ratio: 1;
-  border: 1px solid rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(185, 128, 19, 0.55);
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.15);
-  box-shadow: inset 0 0 5rem rgba(255, 255, 255, 0.35);
+  background: radial-gradient(circle, rgba(255, 205, 62, 0.38), rgba(239, 212, 119, 0.12) 62%, transparent 75%);
+  box-shadow: 0 0 3rem rgba(219, 165, 45, 0.2), inset 0 0 3rem rgba(255, 205, 62, 0.16);
+  transform: translateY(-50%);
 }
-.hero-bottle {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  width: clamp(13rem, 21vw, 17rem);
-  height: clamp(23rem, 36vw, 31rem);
-  color: #eadb9e;
-  border: 1px solid rgba(238, 210, 112, 0.6);
-  border-radius: 7rem 7rem 1.4rem 1.4rem;
-  background: linear-gradient(145deg, #18523c, #09291f 63%);
-  box-shadow: var(--shadow-lg);
-  transform: rotate(2deg);
-}
-.hero-bottle::before {
-  position: absolute;
-  top: -1.8rem;
-  width: 5.4rem;
-  height: 3rem;
-  border-radius: 0.45rem 0.45rem 0 0;
-  background: linear-gradient(90deg, #b47a0c, #f0d06e, #a96906);
-  content: "";
-}
-.hero-bottle img {
-  width: 4.4rem;
-  height: 4.4rem;
-  margin-bottom: 0.5rem;
+.hero-art__mascot {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 34rem;
   object-fit: contain;
+  filter: drop-shadow(0 0.8rem 0.8rem rgba(9, 41, 31, 0.2));
 }
-.hero-bottle b {
-  font-size: 0.68rem;
-  letter-spacing: 0.22em;
-}
-.hero-bottle strong {
-  margin: 1.25rem 0;
-  font: 1.9rem/1 var(--serif);
+.hero-art__brand {
+  position: relative;
+  align-self: start;
+  display: grid;
+  justify-items: center;
+  padding-top: clamp(1.25rem, 3vw, 3rem);
+  color: var(--green-950);
   text-align: center;
 }
-.hero-bottle small {
-  color: #a9c0b2;
+.hero-art__brand p { margin: 0; }
+.hero-art__emblem {
+  width: clamp(3.25rem, 6vw, 5.5rem);
+  height: auto;
+  margin-bottom: 0.65rem;
+}
+.hero-art__label {
+  font-size: clamp(0.7rem, 1.1vw, 0.95rem);
+  font-weight: 800;
+  letter-spacing: 0.14em;
+}
+.hero-art__brand .hero-art__daily {
+  margin-top: 1.1rem;
+  font: 500 clamp(1.5rem, 2.8vw, 2.8rem)/1 var(--serif);
+}
+.hero-art__wellness {
+  font: 500 clamp(1.2rem, 2.1vw, 2rem)/1.15 var(--serif);
+}
+.hero-art__brand .hero-art__tagline {
+  margin-top: 0.9rem;
+  color: var(--green-800);
+  font: 500 clamp(1rem, 1.4vw, 1.3rem)/1.3 var(--serif);
 }
 .catalog-section {
   max-width: var(--content);
-  padding: clamp(4.5rem, 8vw, 7rem)
-    max(1rem, calc((100vw - var(--content)) / 2));
+  padding: clamp(4.5rem, 8vw, 7rem) 1rem;
   margin: 0 auto;
 }
 .section-heading {
@@ -343,12 +352,7 @@
     grid-template-columns: 1fr;
   }
   .hero-art {
-    min-height: 27rem;
-    padding-bottom: 4rem;
-  }
-  .hero-bottle {
-    width: 13rem;
-    height: 23rem;
+    padding: 0 1.25rem 4rem;
   }
   .product-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));

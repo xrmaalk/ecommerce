@@ -6,13 +6,15 @@ export type Site = "storefront" | "archives"
 export const sites = {
   storefront: {
     origin: "https://organicemperor.com", name: "OrganicEmperor", title: "OrganicEmperor | Forever Wellness",
-    description: "OrganicEmperor.com — Quality body care, must have shave essentials and comforting organic teas, soaps and wellness products.",
+    description: "Quality body care, must have shave essentials, comforting organic teas, soap, de-odorant and wellness products.",
     image: "https://api.organicemperor.com/site/storefront/share-image.png",
+    imageAlt: "OrganicEmperor Forever Wellness featuring Purrcilla and the BODIGLO emblem in an emerald-and-gold design.",
   },
   archives: {
     origin: "https://organicarchives.organicemperor.com", name: "OrganicArchives", title: "OrganicArchives | OrganicEmperor",
     description: "Articles, news releases, and updates from OrganicEmperor. Explore the OrganicArchives.",
     image: "https://api.organicemperor.com/site/archives/share-image.png",
+    imageAlt: "OrganicArchives emblem",
   },
 } as const
 export type Metadata = {
@@ -51,7 +53,7 @@ export function siteMetadata(site: Site, path = "/", title?: string): Metadata {
     title: title || brand.title, socialTitle: title || brand.title, description: brand.description,
     canonical: brand.origin + (path.startsWith("/") ? path.split(/[?#]/)[0] : "/"),
     siteName: brand.name, type: "website", image: brand.image,
-    imageAlt: `${brand.name} emblem`, author: "MK SourceCodeX",
+    imageAlt: brand.imageAlt, author: "MK SourceCodeX",
   }
 }
 

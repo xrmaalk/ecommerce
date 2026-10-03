@@ -23,14 +23,29 @@
         <li>Worldclass Service</li>
       </ul>
     </div>
-    <div
-      class="hero-art"
-      aria-label="OrganicEmperor.com Daily Moisture collection">
-      <span class="hero-art__halo" aria-hidden="true"></span>
-      <div class="hero-bottle">
-        <img src="/organic-emperor-emblem.png" alt="OrganicEmperor Emblem" />
-        <b>BODIGLO</b><strong>DAILY<br />Dose of Wellness</strong
-        ><small>Get theGlow. </small>
+    <div class="hero-art">
+      <div class="hero-art__stage">
+        <span class="hero-art__halo" aria-hidden="true"></span>
+        <img
+          class="hero-art__mascot"
+          src="/purrcilla-hero-mascot.png"
+          alt="Purrcilla, the green-eyed tabby mascot, wearing her purple lightning tracksuit."
+          width="1024"
+          height="1536"
+          fetchpriority="high"
+          decoding="async" />
+        <div class="hero-art__brand">
+          <img
+            class="hero-art__emblem"
+            src="/organic-emperor-emblem.png"
+            alt="Leaf and crown emblem"
+            width="444"
+            height="512" />
+          <p class="hero-art__label">BODIGLO</p>
+          <p class="hero-art__daily">DAILY</p>
+          <p class="hero-art__wellness">Dose of Wellness</p>
+          <p class="hero-art__tagline">Get the Glow.</p>
+        </div>
       </div>
     </div>
   </section>
