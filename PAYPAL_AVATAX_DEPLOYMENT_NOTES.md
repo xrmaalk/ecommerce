@@ -3,6 +3,11 @@
 The checkout remains CAD-denominated. Shipping rates stay database-managed and
 are not changed by this patch.
 
+For a new account, an HTTP 401 during checkout, or production configuration,
+follow [the AvaTax account and connection setup](docs/AVATAX_SETUP.md).
+`python manage.py check_avatax` verifies credentials and the active company with
+read-only requests before trying a checkout quote.
+
 ## PayPal Sandbox
 
 Create or select a Sandbox REST app in the PayPal Developer Dashboard. Add this
@@ -54,15 +59,19 @@ checkout instead of guessing tax.
 cd backend
 python manage.py check
 python manage.py test accounts commerce
-python manage.py shell -c "from commerce.tax import AvaTaxAdapter; print(AvaTaxAdapter().base_url)"
+python manage.py check_avatax --local-only
+python manage.py check_avatax
 ```
 
-The final command must print the sandbox hostname. Restart Passenger, create a
+The final command must verify sandbox authentication and the active company.
+Restart Passenger, create a
 new checkout quote, and verify the response contains:
 
 - `tax_provider`: `avalara-avatax`
-- a non-empty `tax_reference`
 - the expected address-dependent `tax_cad`
+
+The saved checkout session in Django Admin must also contain a non-empty
+`tax_reference`; that internal reference is not exposed in the checkout API.
 
 Then complete one PayPal Sandbox purchase using a Personal sandbox buyer. Verify
 exactly one order, one capture ID, one converted cart, one inventory decrement,

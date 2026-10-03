@@ -5,6 +5,7 @@ from datetime import timedelta
 from decimal import Decimal
 from pathlib import Path
 from unittest.mock import patch
+from urllib.error import HTTPError
 
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
@@ -28,7 +29,7 @@ ZERO_TAX = override_settings(
     COMMERCE_ALLOW_ZERO_TAX=True,
 )
 AVATAX = override_settings(
-    AVATAX_ACCOUNT_ID="sandbox-account",
+    AVATAX_ACCOUNT_ID="123456",
     AVATAX_LICENSE_KEY="sandbox-license",
     AVATAX_COMPANY_CODE="ORGANICEMPEROR",
     AVATAX_ENVIRONMENT="sandbox",
@@ -105,6 +106,18 @@ class AvaTaxAdapterTests(TestCase):
                 subtotal=Decimal("40.00"), shipping=Decimal("20.00"),
                 address=self.address(), items=self.items(),
             )
+
+    @AVATAX
+    @patch("commerce.tax.urlopen")
+    def test_avatax_rejects_non_finite_and_negative_provider_amounts(self, mocked_urlopen):
+        for amount in ("NaN", "Infinity", "-Infinity", "-0.01", "invalid"):
+            with self.subTest(amount=amount):
+                mocked_urlopen.return_value = FakeHttpResponse({"totalTax": amount})
+                with self.assertRaises(TaxUnavailable):
+                    AvaTaxAdapter().calculate(
+                        subtotal=Decimal("40.00"), shipping=Decimal("20.00"),
+                        address=self.address(), items=self.items(),
+                    )
 
 
 def make_product(sku="OE-001", inventory=10, price="20.00"):
@@ -188,12 +201,46 @@ class CommerceApiTests(APITestCase):
         self.assertEqual(first.data["items"][0]["quantity"], 4)
         self.assertEqual(second.data["items"][0]["quantity"], 4)
 
+    @override_settings(COMMERCE_TAX_ADAPTER="commerce.tax.UnavailableTaxAdapter")
     def test_checkout_is_blocked_while_tax_provider_is_unavailable(self):
         self.authenticate()
         self.add_product()
         response = self.client.post(reverse("commerce:checkout-quote"), self.address(), format="json")
         self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
         self.assertIn("not configured", response.data["detail"])
+
+    @AVATAX
+    @override_settings(COMMERCE_TAX_ADAPTER="commerce.tax.AvaTaxAdapter")
+    @patch("commerce.tax.urlopen")
+    def test_avatax_quote_reaches_checkout_with_server_totals(self, mocked_urlopen):
+        mocked_urlopen.return_value = FakeHttpResponse({"code": "OE-QUOTE-1", "totalTax": "3.00"})
+        self.authenticate()
+        self.add_product()
+        response = self.client.post(reverse("commerce:checkout-quote"), self.address(), format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["tax_cad"], "3.00")
+        self.assertEqual(response.data["total_cad"], "50.00")
+        self.assertEqual(response.data["tax_provider"], "avalara-avatax")
+        checkout = CheckoutSession.objects.get(pk=response.data["id"])
+        self.assertEqual(checkout.tax_reference, "OE-QUOTE-1")
+
+    @AVATAX
+    @override_settings(COMMERCE_TAX_ADAPTER="commerce.tax.AvaTaxAdapter")
+    @patch("commerce.tax.urlopen")
+    def test_avatax_authentication_rejection_blocks_checkout_without_stock_changes(self, mocked_urlopen):
+        mocked_urlopen.side_effect = HTTPError(
+            "https://sandbox-rest.avatax.com/api/v2/transactions/create", 401, "Unauthorized", {},
+            BytesIO(b'{"private": "sandbox-license"}'),
+        )
+        self.authenticate()
+        self.add_product()
+        response = self.client.post(reverse("commerce:checkout-quote"), self.address(), format="json")
+        self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
+        self.assertIn("HTTP 401", response.data["detail"])
+        self.assertNotIn("sandbox-license", response.data["detail"])
+        self.assertFalse(CheckoutSession.objects.exists())
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.inventory_quantity, 10)
 
     @ZERO_TAX
     def test_checkout_quote_uses_flat_shipping_and_server_totals(self):

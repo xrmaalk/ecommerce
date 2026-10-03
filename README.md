@@ -156,14 +156,21 @@ Production must set `CORS_ALLOWED_ORIGINS` and `CSRF_TRUSTED_ORIGINS` to the
 exact deployed frontend origins. HTTPS is required for the secure session and
 CSRF cookies when `DJANGO_DEBUG=False`.
 
+For a live bag error reporting an untrusted Origin, follow
+[the production CSRF configuration steps](docs/COMMERCE_CSRF_DEPLOYMENT.md).
+An explicit environment list replaces the code defaults, and backend packages
+exclude the live `.env` file.
+
 ## Commerce configuration
 
 Checkout uses PayPal and CAD-denominated flat-rate shipping to Canada and the
 United States. Migration `commerce.0005_configure_initial_shipping_rates`
 activates the agreed initial rates: $15 CAD to Canada and $25 CAD to the United
 States. Both rates remain editable in Django Admin.
-Production checkout remains blocked by `UnavailableTaxAdapter` until a real tax
-provider is connected.
+Checkout remains blocked until a real tax provider is connected. Follow
+[the AvaTax setup guide](docs/AVATAX_SETUP.md) to create an account, configure
+`commerce.tax.AvaTaxAdapter` and run `python manage.py check_avatax` to verify
+authentication and the active company without creating tax transactions.
 
 PayPal requires `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `PAYPAL_WEBHOOK_ID`,
 and `PAYPAL_MODE`. Schedule `python manage.py release_expired_checkout_reservations`
@@ -181,5 +188,6 @@ without downloading untrusted remote URLs.
 
 ## Next milestone
 
-Configure PayPal Sandbox credentials and the sandbox-only zero-tax adapter, then run an end-to-end acceptance test.
-Production tax remains blocked until the provider milestone is completed.
+Configure PayPal Sandbox and AvaTax sandbox credentials, then run an end-to-end
+acceptance test. Verify production tax configuration and paid-sale reporting
+before enabling real purchases.
