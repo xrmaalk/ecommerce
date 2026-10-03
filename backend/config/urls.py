@@ -27,13 +27,19 @@ def api_root(request):
 
 
 urlpatterns = [
-    path("site/storefront/share-image.png", share_image, {"site": "storefront"}, name="seo-storefront-image"),
-    path("site/archives/share-image.png", share_image, {"site": "archives"}, name="seo-archives-image"),
-    path("site/storefront/products/<slug:slug>/share-image.png", share_image, {"site": "storefront"}, name="seo-product-image"),
-    path("site/archives/posts/<slug:slug>/share-image.png", share_image, {"site": "archives"}, name="seo-post-image"),
-    path("site/storefront/products/<slug:slug>", product_page, name="seo-product"),
+    path("site/storefront/share-image.png", share_image,
+         {"site": "storefront"}, name="seo-storefront-image"),
+    path("site/archives/share-image.png", share_image,
+         {"site": "archives"}, name="seo-archives-image"),
+    path("site/storefront/products/<slug:slug>/share-image.png",
+         share_image, {"site": "storefront"}, name="seo-product-image"),
+    path("site/archives/posts/<slug:slug>/share-image.png",
+         share_image, {"site": "archives"}, name="seo-post-image"),
+    path("site/storefront/products/<slug:slug>",
+         product_page, name="seo-product"),
     path("site/archives/posts/<slug:slug>", post_page, name="seo-post"),
-    path("site/archives/sitemap.xml", archives_sitemap, name="seo-archives-sitemap"),
+    path("site/archives/sitemap.xml", archives_sitemap,
+         name="seo-archives-sitemap"),
     path("site/archives/robots.txt", archives_robots, name="seo-archives-robots"),
     path("", lambda request: JsonResponse({
         "service": "OrganicEmperor.com Commerce API",
