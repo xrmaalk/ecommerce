@@ -10,6 +10,7 @@ export default defineConfig(({ mode }) => {
     root: fileURLToPath(new URL("./archives", import.meta.url)),
     envDir: frontendDir,
     publicDir: fileURLToPath(new URL("./public", import.meta.url)),
+    cacheDir: fileURLToPath(new URL("./node_modules/.vite/archives", import.meta.url)),
     plugins: [vue()],
     build: {
       outDir: fileURLToPath(new URL("./dist-archives", import.meta.url)),

@@ -1,9 +1,12 @@
+import re
 import tempfile
 from datetime import timedelta
 from html.parser import HTMLParser
 from io import BytesIO
 from pathlib import Path
 from urllib.parse import urlsplit
+from unittest.mock import patch
+from xml.etree import ElementTree
 
 from PIL import Image
 from django.conf import settings
@@ -215,3 +218,172 @@ class PublicMetadataTests(TestCase):
         with override_settings(SEO_SHELL_DIR=Path(self.directory.name) / "missing"):
             self.assertEqual(self.client.get("/site/storefront/products/oil").status_code, 503)
             self.assertEqual(self.client.get("/site/storefront/products/absent").status_code, 404)
+
+    def test_post_page_includes_server_rendered_article_body(self):
+        PostBlock.objects.create(post=self.post, kind="heading", text="Care routine")
+        PostBlock.objects.create(post=self.post, kind="text", text="**Gentle** cleansing keeps [skin](https://example.com) calm.\n\n- Step one\n- Step two")
+        PostBlock.objects.create(post=self.post, kind="quote", text="Less is more", caption="Editor")
+        response = self.client.get("/site/archives/posts/article")
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode()
+        # Article text is present in the raw HTML for crawlers...
+        self.assertIn("<h1>An article</h1>", content)
+        self.assertIn("<h2>Care routine</h2>", content)
+        self.assertIn("<p>Gentle cleansing keeps skin calm.</p>", content)
+        self.assertIn("<ul><li>Step one</li><li>Step two</li></ul>", content)
+        self.assertIn("<blockquote><p>Less is more</p><cite>Editor</cite></blockquote>", content)
+        # ...inside the app mount point the Vue app replaces on load.
+        self.assertIn('<div id="app"><article>', content)
+
+    def test_post_body_escapes_untrusted_block_content(self):
+        PostBlock.objects.create(post=self.post, kind="text", text='<script>alert(1)</script> "quoted"')
+        PostBlock.objects.create(post=self.post, kind="heading", text="<img src=x onerror=alert(2)>")
+        content = self.client.get("/site/archives/posts/article").content.decode()
+        self.assertNotIn("<script>alert(1)</script>", content)
+        self.assertIn("&lt;script&gt;alert(1)&lt;/script&gt;", content)
+        self.assertNotIn("<img src=x", content)
+        self.assertIn("&lt;img src=x onerror=alert(2)&gt;", content)
+
+    def test_post_body_absent_for_missing_posts_and_untouched_for_products(self):
+        response = self.client.get("/site/archives/posts/absent")
+        self.assertEqual(response.status_code, 404)
+        self.assertNotIn(b"<article>", response.content)
+        content = self.client.get("/site/storefront/products/oil").content.decode()
+        self.assertNotIn("<article>", content)
+        self.assertIn('<div id="app"></div>', content)
+
+    def test_archives_sitemap_and_robots(self):
+        response = self.client.get("/site/archives/sitemap.xml")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("application/xml", response["Content-Type"])
+        self.assertIn("no-store", response["Cache-Control"])
+        content = response.content.decode()
+        self.assertIn("<loc>https://organicarchives.organicemperor.com/</loc>", content)
+        self.assertIn("<loc>https://organicarchives.organicemperor.com/posts/article</loc>", content)
+        self.post.status = Post.Status.DRAFT
+        self.post.save()
+        self.assertNotIn(b"/posts/article</loc>", self.client.get("/site/archives/sitemap.xml").content)
+        robots = self.client.get("/site/archives/robots.txt")
+        self.assertEqual(robots.status_code, 200)
+        self.assertIn("text/plain", robots["Content-Type"])
+        body = robots.content.decode()
+        self.assertIn("Sitemap: https://organicarchives.organicemperor.com/sitemap.xml", body)
+
+    def test_body_rejects_unsafe_media_and_video_links_even_without_model_validation(self):
+        unsafe = (
+            "javascript:alert(1)", "java\nscript:alert(1)", "data:text/html,test",
+            "//evil.example/clip.mp4", "http://api.organicemperor.com/clip.mp4",
+            "https://api.organicemperor.com@evil.example/clip.mp4",
+            "https://evil.example/clip.mp4", "https://youtube.com:bad/watch?v=aqz-KE-bpKQ",
+        )
+        for value in unsafe:
+            with self.subTest(value=value):
+                block = PostBlock.objects.create(post=self.post, kind="embed", video_url=value)
+                content = self.client.get("/site/archives/posts/article").content.decode()
+                nodes = Head(content).nodes
+                self.assertFalse(any(tag == "a" and attrs.get("href") for tag, attrs in nodes))
+                block.kind = "video"
+                block.save()
+                content = self.client.get("/site/archives/posts/article").content.decode()
+                self.assertFalse(any(tag == "a" and attrs.get("href") for tag, attrs in Head(content).nodes))
+                block.delete()
+                block = PostBlock.objects.create(post=self.post, kind="image", image="unsafe.png")
+                with patch("django.core.files.storage.FileSystemStorage.url", return_value=value):
+                    content = self.client.get("/site/archives/posts/article").content.decode()
+                self.assertFalse(any(tag == "img" for tag, _ in Head(content).nodes))
+                block.kind = "video"
+                block.video = "unsafe.mp4"
+                block.save()
+                with patch("django.core.files.storage.FileSystemStorage.url", return_value=value):
+                    content = self.client.get("/site/archives/posts/article").content.decode()
+                self.assertFalse(any(tag == "video" for tag, _ in Head(content).nodes))
+                block.delete()
+
+    def test_body_keeps_complete_plain_fields_and_ordered_public_media(self):
+        self.post.title = 'Literal <b>title</b> & "words"'
+        self.post.excerpt = "Full introduction " + "a" * 460
+        self.post.cover_image = self.image("cover.png")
+        self.post.cover_alt = 'Cover " /><img src=x onerror=alert(1)>'
+        self.post.save()
+        PostBlock.objects.create(post=self.post, position=6, kind="embed", video_url="https://youtu.be/aqz-KE-bpKQ", caption="Film & discussion")
+        video = PostBlock.objects.create(post=self.post, position=5, kind="video", video=SimpleUploadedFile("clip.mp4", b"clip"), caption="The film")
+        image = PostBlock.objects.create(post=self.post, position=4, kind="image", image=self.image("body.png"), alt_text='Photo " onerror="alert(2)', caption="Photo & caption")
+        PostBlock.objects.create(post=self.post, position=3, kind="quote", text="**Literal quote**", caption="[Literal attribution]")
+        PostBlock.objects.create(post=self.post, position=2, kind="text", text="# Nested heading\n\n1. First\n2. Second\n\n> Quoted paragraph")
+        PostBlock.objects.create(post=self.post, position=1, kind="heading", text="## Literal heading")
+        content = self.client.get("/site/archives/posts/article").content.decode()
+        self.assertIn("<h1>Literal &lt;b&gt;title&lt;/b&gt; &amp; \"words\"</h1>", content)
+        self.assertIn(self.post.excerpt, content)
+        self.assertIn("<h2>## Literal heading</h2>", content)
+        self.assertIn("<h2>Nested heading</h2>", content)
+        self.assertIn("<ol><li>First</li><li>Second</li></ol>", content)
+        self.assertIn("<blockquote><p>Quoted paragraph</p></blockquote>", content)
+        self.assertIn("<p>**Literal quote**</p><cite>[Literal attribution]</cite>", content)
+        self.assertLess(content.index("## Literal heading"), content.index("Nested heading"))
+        nodes = Head(content).nodes
+        images = [attrs for tag, attrs in nodes if tag == "img"]
+        self.assertEqual([attrs["src"] for attrs in images], [settings.SEO_MEDIA_ORIGIN + self.post.cover_image.url, settings.SEO_MEDIA_ORIGIN + image.image.url])
+        self.assertEqual([attrs["alt"] for attrs in images], [self.post.cover_alt, image.alt_text])
+        self.assertFalse(any("onerror" in attrs for _, attrs in nodes))
+        self.assertIn(("video", {"controls": None, "preload": "metadata", "src": settings.SEO_MEDIA_ORIGIN + video.video.url}), nodes)
+        self.assertIn('href="https://www.youtube-nocookie.com/embed/aqz-KE-bpKQ"', content)
+        PostBlock.objects.filter(post=self.post, kind="embed").update(video_url="https://vimeo.com/123456")
+        self.assertIn(b'href="https://player.vimeo.com/video/123456"', self.client.get("/site/archives/posts/article").content)
+
+    def test_body_is_identical_for_crawlers_and_retains_shell_scripts(self):
+        PostBlock.objects.create(post=self.post, kind="text", text="Public words and {{ untrusted_template() }}")
+        path = "/site/archives/posts/article"
+        content = self.client.get(path, HTTP_USER_AGENT="Mozilla/5.0").content
+        self.assertEqual(content, self.client.get(path, HTTP_USER_AGENT="Googlebot").content)
+        shell = (Path(settings.SEO_SHELL_DIR) / "archives.html").read_bytes()
+        # Preserve complete script elements, including advertising and Vite's entry.
+        self.assertEqual(re.findall(rb"<script\b.*?</script>", shell, re.S), re.findall(rb"<script\b.*?</script>", content, re.S))
+        self.assertIn(b"{{ untrusted_template() }}", content)
+
+    def test_sitemap_contains_only_public_canonical_urls_and_valid_dates(self):
+        PostBlock.objects.create(post=self.post, kind="text", text="Private body sentinel")
+        namespace = {"s": "http://www.sitemaps.org/schemas/sitemap/0.9"}
+        path = "/site/archives/sitemap.xml"
+        root = ElementTree.fromstring(self.client.get(path, HTTP_HOST="other.example").content)
+        self.assertEqual([node.text for node in root.findall("s:url/s:loc", namespace)], [
+            "https://organicarchives.organicemperor.com/",
+            "https://organicarchives.organicemperor.com/posts/article",
+        ])
+        self.assertEqual(root.find("s:url/s:lastmod", namespace).text, self.post.updated_at.date().isoformat())
+        user = get_user_model().objects.create_user(username="sitemap-staff", is_staff=True)
+        self.client.force_login(user)
+        for status, published in ((Post.Status.DRAFT, timezone.now()), (Post.Status.PUBLISHED, None), (Post.Status.PUBLISHED, timezone.now() + timedelta(days=1))):
+            self.post.status, self.post.published_at = status, published
+            self.post.save()
+            response = self.client.get(path)
+            self.assertNotIn(b"/posts/article", response.content)
+            page = self.client.get("/site/archives/posts/article")
+            self.assertEqual(page.status_code, 404)
+            self.assertEqual(page["X-Robots-Tag"], "noindex")
+            self.assertNotIn(b"Private body sentinel", page.content)
+        # A scheduled article's publication can be newer than its last edit.
+        self.post.published_at = timezone.now() - timedelta(hours=1)
+        self.post.save()
+        Post.objects.filter(pk=self.post.pk).update(updated_at=timezone.now() - timedelta(days=2))
+        root = ElementTree.fromstring(self.client.get(path).content)
+        self.assertEqual(root.find("s:url/s:lastmod", namespace).text, self.post.published_at.date().isoformat())
+        self.post.delete()
+        self.assertNotIn(b"/posts/article", self.client.get(path).content)
+
+    def test_crawl_endpoints_support_head_and_reject_writes(self):
+        for path in ("/site/archives/sitemap.xml", "/site/archives/robots.txt"):
+            with self.subTest(path=path):
+                response = self.client.head(path)
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.content, b"")
+                self.assertIn("no-store", response["Cache-Control"])
+                self.assertEqual(response["X-Content-Type-Options"], "nosniff")
+                self.assertEqual(self.client.post(path).status_code, 405)
+
+    def test_missing_or_duplicate_article_mount_fails_closed(self):
+        source = Path(settings.SEO_SHELL_DIR) / "archives.html"
+        shell = source.read_text(encoding="utf-8")
+        for replacement in ('<main id="app"></main>', '<div id="app"></div><div id="app"></div>'):
+            with self.subTest(replacement=replacement):
+                source.write_text(shell.replace('<div id="app"></div>', replacement), encoding="utf-8")
+                self.assertEqual(self.client.get("/site/archives/posts/article").status_code, 503)

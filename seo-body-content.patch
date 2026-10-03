@@ -1,0 +1,327 @@
+From a6395efbb61b5c3a741cfd309a2d3e620c2df01d Mon Sep 17 00:00:00 2001
+From: Kai <kai@organicemperor.local>
+Date: Fri, 2 Oct 2026 21:28:33 -0600
+Subject: [PATCH] SEO: server-render article bodies into archives shells +
+ sitemap/robots
+
+Post pages served via the Django shell pipeline now include the full
+article text (title, byline, excerpt, blocks) inside #app, so crawlers
+receive real content instead of an empty Vue mount point. The Vue app
+still replaces it on mount; behavior for JS visitors is unchanged.
+
+- backend/config/seo.py: render_post_body()/render_block() with
+  conservative dependency-free Markdown subset; all user content escaped.
+  html_response() injects body HTML into <div id="app">. New
+  archives_sitemap and archives_robots views (no-store).
+- backend/config/urls.py: routes for the new views.
+- frontend/public/.htaccess: proxy sitemap.xml/robots.txt to Django on the
+  archives host instead of serving the SPA shell.
+- backend/config/test_seo.py: 4 new tests (body content, XSS escaping,
+  no body on 404/product pages, sitemap/robots).
+---
+ backend/config/seo.py      | 174 ++++++++++++++++++++++++++++++++++++-
+ backend/config/test_seo.py |  50 +++++++++++
+ backend/config/urls.py     |   4 +-
+ frontend/public/.htaccess  |   5 ++
+ 4 files changed, 229 insertions(+), 4 deletions(-)
+
+diff --git a/backend/config/seo.py b/backend/config/seo.py
+index f43b6a9..69f1d00 100644
+--- a/backend/config/seo.py
++++ b/backend/config/seo.py
+@@ -1,4 +1,5 @@
+ """Public HTML shells: the same Vue application, with metadata before JavaScript."""
++import html
+ import logging
+ import re
+ from html.parser import HTMLParser
+@@ -132,7 +133,140 @@ def post_metadata(post):
+     return data
+ 
+ 
+-def html_response(site, metadata, status=200):
++APP_MOUNT = '<div id="app"></div>'
++
++
++def inline_text(value):
++    """Degrade inline Markdown to plain words, then escape for HTML.
++
++    Used for server-rendered article bodies: crawlers get the words, and no
++    author-supplied markup ever reaches the page unescaped.
++    """
++    text = str(value or "")
++    text = re.sub(r"!\[([^\]]*)\]\([^)]*\)", r"\1", text)
++    text = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", text)
++    text = re.sub(r"\*\*(.*?)\*\*", r"\1", text)
++    text = re.sub(r"__(.*?)__", r"\1", text)
++    text = text.replace("`", "")
++    return html.escape(text, quote=False)
++
++
++def render_text_block(text):
++    """Conservative Markdown subset (headings, lists, quotes, paragraphs)."""
++    parts, list_tag, items = [], None, []
++
++    def close_list():
++        nonlocal list_tag, items
++        if list_tag:
++            lis = "".join(f"<li>{inline_text(item)}</li>" for item in items)
++            parts.append(f"<{list_tag}>{lis}</{list_tag}>")
++            list_tag, items = None, []
++
++    for raw_line in str(text or "").splitlines():
++        line = raw_line.strip()
++        if not line:
++            close_list()
++            continue
++        heading = re.match(r"^(#{1,6})\s+(.*)$", line)
++        if heading:
++            close_list()
++            # Mirror the frontend: headings are demoted one level inside articles.
++            level = min(len(heading.group(1)) + 1, 6)
++            parts.append(f"<h{level}>{inline_text(heading.group(2))}</h{level}>")
++            continue
++        bullet = re.match(r"^[-*]\s+(.*)$", line)
++        ordered = re.match(r"^\d+[.)]\s+(.*)$", line)
++        if bullet or ordered:
++            tag = "ol" if ordered else "ul"
++            if list_tag != tag:
++                close_list()
++                list_tag = tag
++            items.append((bullet or ordered).group(1))
++            continue
++        close_list()
++        quote = re.match(r"^>\s?(.*)$", line)
++        if quote:
++            parts.append(f"<blockquote><p>{inline_text(quote.group(1))}</p></blockquote>")
++        else:
++            parts.append(f"<p>{inline_text(line)}</p>")
++    close_list()
++    return "".join(parts)
++
++
++def absolute_media_url(file_field):
++    try:
++        url = file_field.url
++    except ValueError:
++        return ""
++    if not url:
++        return ""
++    return urljoin(settings.SEO_MEDIA_ORIGIN.rstrip("/") + "/", url)
++
++
++def render_block(block):
++    kind = block.kind
++    if kind == "heading":
++        text = inline_text(re.sub(r"^#{1,6}\s+", "", str(block.text or "")))
++        return f"<h2>{text}</h2>" if text else ""
++    if kind == "quote":
++        text = inline_text(block.text)
++        if not text:
++            return ""
++        cite = f"<cite>{inline_text(block.caption)}</cite>" if block.caption else ""
++        return f"<blockquote><p>{text}</p>{cite}</blockquote>"
++    if kind == "image":
++        src = absolute_media_url(block.image)
++        if not src:
++            return ""
++        alt = html.escape(block.alt_text or block.caption or "", quote=True)
++        caption = f"<figcaption>{inline_text(block.caption)}</figcaption>" if block.caption else ""
++        return f'<figure><img src="{html.escape(src, quote=True)}" alt="{alt}" loading="lazy">{caption}</figure>'
++    if kind == "video":
++        src = absolute_media_url(block.video)
++        caption = f"<figcaption>{inline_text(block.caption)}</figcaption>" if block.caption else ""
++        if src:
++            return f'<figure><video controls preload="metadata" src="{html.escape(src, quote=True)}"></video>{caption}</figure>'
++        if block.video_url:
++            url = html.escape(block.video_url, quote=True)
++            label = inline_text(block.caption) or "Watch the video"
++            return f'<p><a href="{url}" rel="noopener">{label}</a></p>'
++        return ""
++    if kind == "embed":
++        if not block.video_url:
++            return ""
++        url = html.escape(block.video_url, quote=True)
++        label = inline_text(block.caption) or "Watch the video"
++        return f'<p><a href="{url}" rel="noopener">{label}</a></p>'
++    return render_text_block(block.text)
++
++
++def render_post_body(post):
++    """Server-rendered article body.
++
++    Crawlers (and readers without JavaScript) receive the full article text in
++    the HTML. The Vue app replaces this content when it mounts, so interactive
++    behavior is unchanged.
++    """
++    parts = ["<article>"]
++    title = plain_text(post.title, 1000)
++    if title:
++        parts.append(f"<h1>{html.escape(title, quote=False)}</h1>")
++    author = plain_text(post.author_name)
++    if author or post.published_at:
++        byline = " · ".join(part for part in (author, post.published_at.date().isoformat() if post.published_at else "") if part)
++        parts.append(f'<p class="byline">{html.escape(byline, quote=False)}</p>')
++    excerpt = plain_text(post.excerpt, 400)
++    if excerpt:
++        parts.append(f'<p class="excerpt">{html.escape(excerpt, quote=False)}</p>')
++    for block in post.blocks.all():
++        rendered = render_block(block)
++        if rendered:
++            parts.append(rendered)
++    parts.append("</article>")
++    return "".join(parts)
++
++
++def html_response(site, metadata, status=200, body_html=""):
+     try:
+         shell = (Path(settings.SEO_SHELL_DIR) / f"{site}.html").read_text(encoding="utf-8")
+         if shell.count(START) != 1 or shell.count(END) != 1:
+@@ -144,7 +278,11 @@ def html_response(site, metadata, status=200):
+         return HttpResponse("Page unavailable" if status == 404 else "Frontend build unavailable", status=404 if status == 404 else 503)
+     # Django autoescapes both attribute values and title text. Shell scripts stay byte-for-byte intact.
+     head = render_to_string("seo/head.html", metadata)
+-    response = HttpResponse(before + START + head + END + after, status=status)
++    page = before + START + head + END + after
++    if body_html and APP_MOUNT in page:
++        # Crawlers read this; the Vue app replaces it on mount.
++        page = page.replace(APP_MOUNT, f'<div id="app">{body_html}</div>', 1)
++    response = HttpResponse(page, status=status)
+     if status == 404:
+         response["X-Robots-Tag"] = "noindex"
+     return response
+@@ -163,4 +301,34 @@ def product_page(request, slug):
+ def post_page(request, slug):
+     post = Post.objects.public().filter(slug=slug).prefetch_related("blocks").first()
+     metadata = post_metadata(post) if post else site_metadata("archives", "/posts/" + quote(slug, safe=""))
+-    return html_response("archives", metadata, 200 if post else 404)
++    body_html = render_post_body(post) if post else ""
++    return html_response("archives", metadata, 200 if post else 404, body_html)
++
++
++ARCHIVES_ORIGIN = "https://organicarchives.organicemperor.com"
++
++
++@require_safe
++@never_cache
++def archives_sitemap(request):
++    urls = [f"<url><loc>{ARCHIVES_ORIGIN}/</loc></url>"]
++    for post in Post.objects.public().order_by("-published_at"):
++        stamp = post.updated_at or post.published_at
++        lastmod = f"<lastmod>{stamp.date().isoformat()}</lastmod>" if stamp else ""
++        loc = html.escape(f"{ARCHIVES_ORIGIN}/posts/{quote(post.slug, safe='')}", quote=True)
++        urls.append(f"<url><loc>{loc}</loc>{lastmod}</url>")
++    xml = (
++        '<?xml version="1.0" encoding="UTF-8"?>'
++        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
++        + "".join(urls) + "</urlset>"
++    )
++    return HttpResponse(xml, content_type="application/xml")
++
++
++@require_safe
++@never_cache
++def archives_robots(request):
++    return HttpResponse(
++        f"User-agent: *\nAllow: /\nSitemap: {ARCHIVES_ORIGIN}/sitemap.xml\n",
++        content_type="text/plain",
++    )
+diff --git a/backend/config/test_seo.py b/backend/config/test_seo.py
+index 6236cde..d10af97 100644
+--- a/backend/config/test_seo.py
++++ b/backend/config/test_seo.py
+@@ -215,3 +215,53 @@ class PublicMetadataTests(TestCase):
+         with override_settings(SEO_SHELL_DIR=Path(self.directory.name) / "missing"):
+             self.assertEqual(self.client.get("/site/storefront/products/oil").status_code, 503)
+             self.assertEqual(self.client.get("/site/storefront/products/absent").status_code, 404)
++
++    def test_post_page_includes_server_rendered_article_body(self):
++        PostBlock.objects.create(post=self.post, kind="heading", text="## Care routine")
++        PostBlock.objects.create(post=self.post, kind="text", text="**Gentle** cleansing keeps [skin](https://example.com) calm.\n\n- Step one\n- Step two")
++        PostBlock.objects.create(post=self.post, kind="quote", text="Less is more", caption="Editor")
++        response = self.client.get("/site/archives/posts/article")
++        self.assertEqual(response.status_code, 200)
++        content = response.content.decode()
++        # Article text is present in the raw HTML for crawlers...
++        self.assertIn("<h1>An article</h1>", content)
++        self.assertIn("<h2>Care routine</h2>", content)
++        self.assertIn("<p>Gentle cleansing keeps skin calm.</p>", content)
++        self.assertIn("<ul><li>Step one</li><li>Step two</li></ul>", content)
++        self.assertIn("<blockquote><p>Less is more</p><cite>Editor</cite></blockquote>", content)
++        # ...inside the app mount point the Vue app replaces on load.
++        self.assertIn('<div id="app"><article>', content)
++
++    def test_post_body_escapes_untrusted_block_content(self):
++        PostBlock.objects.create(post=self.post, kind="text", text='<script>alert(1)</script> "quoted"')
++        PostBlock.objects.create(post=self.post, kind="heading", text="<img src=x onerror=alert(2)>")
++        content = self.client.get("/site/archives/posts/article").content.decode()
++        self.assertNotIn("<script>alert(1)</script>", content)
++        self.assertIn("&lt;script&gt;alert(1)&lt;/script&gt;", content)
++        self.assertNotIn("<img src=x", content)
++        self.assertIn("&lt;img src=x onerror=alert(2)&gt;", content)
++
++    def test_post_body_absent_for_missing_posts_and_untouched_for_products(self):
++        response = self.client.get("/site/archives/posts/absent")
++        self.assertEqual(response.status_code, 404)
++        self.assertNotIn(b"<article>", response.content)
++        content = self.client.get("/site/storefront/products/oil").content.decode()
++        self.assertNotIn("<article>", content)
++        self.assertIn('<div id="app"></div>', content)
++
++    def test_archives_sitemap_and_robots(self):
++        response = self.client.get("/site/archives/sitemap.xml")
++        self.assertEqual(response.status_code, 200)
++        self.assertIn("application/xml", response["Content-Type"])
++        self.assertIn("no-store", response["Cache-Control"])
++        content = response.content.decode()
++        self.assertIn("<loc>https://organicarchives.organicemperor.com/</loc>", content)
++        self.assertIn("<loc>https://organicarchives.organicemperor.com/posts/article</loc>", content)
++        self.post.status = Post.Status.DRAFT
++        self.post.save()
++        self.assertNotIn(b"/posts/article</loc>", self.client.get("/site/archives/sitemap.xml").content)
++        robots = self.client.get("/site/archives/robots.txt")
++        self.assertEqual(robots.status_code, 200)
++        self.assertIn("text/plain", robots["Content-Type"])
++        body = robots.content.decode()
++        self.assertIn("Sitemap: https://organicarchives.organicemperor.com/sitemap.xml", body)
+diff --git a/backend/config/urls.py b/backend/config/urls.py
+index 8b70ed9..1e067ba 100644
+--- a/backend/config/urls.py
++++ b/backend/config/urls.py
+@@ -4,7 +4,7 @@ from django.contrib import admin
+ from django.http import JsonResponse
+ from django.urls import include, path, re_path
+ from django.views.static import serve as serve_media
+-from .seo import product_page, post_page
++from .seo import product_page, post_page, archives_sitemap, archives_robots
+ from .share_images import share_image
+ 
+ admin.site.site_header = "OrganicEmperor.com Administration"
+@@ -33,6 +33,8 @@ urlpatterns = [
+     path("site/archives/posts/<slug:slug>/share-image.png", share_image, {"site": "archives"}, name="seo-post-image"),
+     path("site/storefront/products/<slug:slug>", product_page, name="seo-product"),
+     path("site/archives/posts/<slug:slug>", post_page, name="seo-post"),
++    path("site/archives/sitemap.xml", archives_sitemap, name="seo-archives-sitemap"),
++    path("site/archives/robots.txt", archives_robots, name="seo-archives-robots"),
+     path("", lambda request: JsonResponse({
+         "service": "OrganicEmperor.com Commerce API",
+         "status": "online",
+diff --git a/frontend/public/.htaccess b/frontend/public/.htaccess
+index e3e0f09..dc4b6a0 100644
+--- a/frontend/public/.htaccess
++++ b/frontend/public/.htaccess
+@@ -5,6 +5,11 @@ Options -Indexes
+   RewriteBase /
+   # Missing hashed assets must return 404 instead of the SPA HTML document.
+   RewriteRule ^assets/ - [L]
++  # Archives SEO: serve the Django sitemap and robots instead of the SPA shell.
++  RewriteCond %{HTTP_HOST} ^organicarchives\.organicemperor\.com$ [NC]
++  RewriteRule ^sitemap\.xml$ https://api.organicemperor.com/site/archives/sitemap.xml [P,L]
++  RewriteCond %{HTTP_HOST} ^organicarchives\.organicemperor\.com$ [NC]
++  RewriteRule ^robots\.txt$ https://api.organicemperor.com/site/archives/robots.txt [P,L]
+   # These fixed upstreams serve the Vue shell with public metadata for EVERY visitor.
+   # Hosting must enable HTTPS reverse proxying (see docs/SEO_DEPLOYMENT.md).
+   RewriteCond %{HTTP_HOST} ^(www\.)?organicemperor\.com$ [NC]
+-- 
+2.43.0
+

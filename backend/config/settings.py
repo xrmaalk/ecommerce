@@ -61,6 +61,12 @@ DATABASES = {
         conn_max_age=60,
     )
 }
+if DATABASES["default"]["ENGINE"] == "django.db.backends.sqlite3":
+    database_name = DATABASES["default"]["NAME"]
+    # sqlite:///db.sqlite3 must use the same local database whether manage.py
+    # is launched from the repository root or from backend/.
+    if database_name != ":memory:" and not database_name.startswith("file:") and not Path(database_name).is_absolute():
+        DATABASES["default"]["NAME"] = str(BASE_DIR / database_name)
 if DATABASES["default"]["ENGINE"] == "django.db.backends.mysql":
     DATABASES["default"].setdefault("OPTIONS", {})
     DATABASES["default"]["OPTIONS"]["charset"] = "utf8mb4"
@@ -90,6 +96,8 @@ STORAGES = {
 }
 MEDIA_URL = "/media/"
 MEDIA_ROOT = Path(os.environ.get("DJANGO_MEDIA_ROOT", BASE_DIR / "media"))
+if not MEDIA_ROOT.is_absolute():
+    MEDIA_ROOT = BASE_DIR / MEDIA_ROOT
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 SEO_SHELL_DIR = BASE_DIR / "site_shells"
 SEO_MEDIA_ORIGIN = os.environ.get("SEO_MEDIA_ORIGIN", "https://api.organicemperor.com").rstrip("/")

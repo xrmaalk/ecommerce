@@ -35,8 +35,9 @@ const draft: PostPreview = {
 let app: App
 let container: HTMLDivElement
 async function flush() { await Promise.resolve(); await Promise.resolve(); await nextTick() }
-function mount() {
+function mount(initialHtml = "") {
   container = document.createElement("div")
+  container.innerHTML = initialHtml
   document.body.append(container)
   app = createApp(PostView)
   app.component("RouterLink", defineComponent({ setup(_, { slots }) { return () => h("a", slots.default?.()) } }))
@@ -52,6 +53,19 @@ beforeEach(() => {
 afterEach(() => { app?.unmount(); container?.remove(); vi.restoreAllMocks() })
 
 describe("Archives draft preview", () => {
+  it("replaces the server article on mount without compiling its escaped text", async () => {
+    mocks.route.name = "post"
+    mocks.route.fullPath = "/posts/private-release"
+    mount('<article data-server-article><h1>Fallback article</h1><p>{{ untrusted_template() }}</p></article>')
+    await flush()
+    expect(container.querySelector("[data-server-article]")).toBeNull()
+    expect(container.querySelectorAll("article")).toHaveLength(1)
+    expect(container.querySelector("h1")?.textContent).toBe(draft.title)
+    expect(container.textContent).not.toContain("untrusted_template")
+    expect(mocks.getArchive).toHaveBeenCalled()
+    expect(container.querySelector(".reader-community")).not.toBeNull()
+  })
+
   it("updates public article metadata and ignores delayed responses from an older article", async () => {
     let resolveFirst!: (value: unknown) => void
     mocks.route.name = "post"

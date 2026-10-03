@@ -11,6 +11,15 @@ npm run dev
 
 The active environment must define `VITE_API_BASE_URL`. Production currently targets `https://api.organicemperor.com/api/v1`.
 
+Local development uses the Django database in `backend/db.sqlite3`, including
+when Django is launched from the repository root. Keep Django running on port
+8000, the storefront on 5173, and Archives on 5174 (`npm run dev:archives` in a
+second terminal). Building either site does not start its development server.
+Relative `DJANGO_MEDIA_ROOT` values also resolve against `backend/`, so local
+uploads in `backend/media/` remain accessible from either launch directory.
+The two Vite configurations use separate dependency caches so running both
+sites together does not interrupt lazy-loaded article and draft preview pages.
+
 ## Validation and build
 
 ```bash

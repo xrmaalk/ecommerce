@@ -13,6 +13,21 @@ article publication use the same filters as the public APIs. Missing/private
 content returns HTTP 404, even for authenticated staff. Missing build shells
 return 503 for otherwise-public content, rather than misleading generic HTML.
 
+Archives article responses also contain the title, complete excerpt, byline,
+cover and ordered body sections inside `#app` before JavaScript runs. Vue replaces
+this content on mount. The fallback uses a conservative Markdown subset for
+headings, lists, quotes and paragraphs; inline Markdown links/emphasis become
+plain words. Heading and quote blocks stay literal text, as in the reader.
+All text is escaped, uploaded media uses the trusted HTTPS origins below, and
+embedded videos become links to validated YouTube/Vimeo players. No remote
+content is fetched by Django. A missing or duplicate article mount returns 503.
+This follows [Google's guidance on serving content in the initial HTML](https://developers.google.com/search/docs/crawling-indexing/javascript/javascript-seo-basics).
+
+Archives also serves a dynamic `/sitemap.xml` and `/robots.txt`. The sitemap lists
+the canonical homepage and public posts only, with publication/update dates;
+drafts, undated and scheduled posts are excluded even for staff. Both endpoints
+accept GET/HEAD and use no-store so withdrawals take effect immediately.
+
 ## Build and deploy one matching release
 
 From the repository root (Windows):
@@ -45,8 +60,8 @@ required. Do not edit the generated shells or hard-code bundle hashes.
    place. Frontend ZIPs now give `.htaccess` the same fresh timestamp as the entry
    document, rather than the fixed timestamp used for immutable assets.
    An atomic release switch is preferable where the host supports it.
-5. Bypass/purge any CDN or LiteSpeed full-page cache for `/products/*`, `/posts/*`
-   and `/site/*`. Keep hashed asset caching. Dynamic responses carry
+5. Bypass/purge any CDN or LiteSpeed full-page cache for `/products/*`, `/posts/*`,
+   `/sitemap.xml`, `/robots.txt` and `/site/*`. Keep hashed asset caching. Dynamic responses carry
    `Cache-Control: no-cache, no-store, must-revalidate` so edits and withdrawals
    take effect immediately. Check that the host respects this header and 404s.
 
@@ -58,6 +73,8 @@ The packaged `.htaccess` has fixed upstream proxy rules before SPA fallback:
 | --- | --- |
 | `organicemperor.com/products/<slug>` | `https://api.organicemperor.com/site/storefront/products/<slug>` |
 | `organicarchives.organicemperor.com/posts/<slug>` | `https://api.organicemperor.com/site/archives/posts/<slug>` |
+| `organicarchives.organicemperor.com/sitemap.xml` | `https://api.organicemperor.com/site/archives/sitemap.xml` |
+| `organicarchives.organicemperor.com/robots.txt` | `https://api.organicemperor.com/site/archives/robots.txt` |
 
 Trailing slash detail URLs redirect to their canonical non-slash URL. Query
 strings do not change metadata. Responses must preserve the upstream status,
@@ -212,6 +229,14 @@ and article-only fields must update; gallery selection must retain the primary
 sharing image. Existing accounts, carts, checkout and publisher previews should
 still work. Static listing heads retain the appropriate brand image, including
 `https://api.organicemperor.com/site/archives/share-image.png`.
+
+For article crawling, raw HTML must also include `<div id="app"><article>` and
+the actual body text before JavaScript. Confirm it contains one article and that
+Vue replaces the fallback normally. Fetch the public Archives `/sitemap.xml`
+and `/robots.txt`: expect XML and plain text respectively, rather than the SPA
+shell. Verify the sitemap lists public canonical post URLs, excludes unpublished
+content and removes a withdrawn post. The robots file must advertise the public
+Archives sitemap URL. Submit that URL in Search Console after deployment.
 
 After verifying origin HTML and purging any hosting page cache, request a fresh
 preview in [Meta Sharing Debugger](https://developers.facebook.com/tools/debug/)
