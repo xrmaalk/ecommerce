@@ -62,6 +62,11 @@ function handleCompleted(order: Order) {
       <p>Confirm your delivery address, review the server-calculated total, then complete payment with PayPal.</p>
     </header>
 
+    <div class="contact-checkout-note">
+      <p>Prefer to arrange your order by email? We’ll confirm availability and your complete quote before payment.</p>
+      <RouterLink class="text-link" :to="{ name: 'contact', query: { bag: '1' } }">Send an order request or purchase order <span aria-hidden="true">→</span></RouterLink>
+    </div>
+
     <div v-if="bag.isEmpty" class="notice-card">
       <h2>Your bag is empty</h2>
       <p>Add something to your bag before beginning checkout.</p>
@@ -101,7 +106,7 @@ function handleCompleted(order: Order) {
         <dl>
           <div><dt>Items ({{ bag.itemCount }})</dt><dd>{{ formatCad(quote ? Number(quote.subtotal_cad) : bag.subtotal) }}</dd></div>
           <div><dt>Shipping</dt><dd>{{ quote ? formatCad(Number(quote.shipping_cad)) : "Calculated after address" }}</dd></div>
-          <div><dt>Tax</dt><dd>{{ quote ? formatCad(Number(quote.tax_cad)) : "Pending tax adapter" }}</dd></div>
+          <div><dt>Tax</dt><dd>{{ quote ? formatCad(Number(quote.tax_cad)) : "Calculated with your quote" }}</dd></div>
         </dl>
         <div class="bag-summary__total"><span>Total</span><strong>{{ formatCad(quote ? Number(quote.total_cad) : bag.subtotal) }} <small>CAD</small></strong></div>
         <div v-if="error" class="form-alert form-alert--error" role="alert">{{ error }}</div>

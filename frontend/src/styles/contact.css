@@ -1,0 +1,52 @@
+.contact-page { max-width: 78rem; padding-inline: clamp(1rem, 4vw, 3rem); }
+.contact-heading { max-width: 45rem; margin-bottom: 2.75rem; }
+.contact-heading > p:last-child { font-size: 1.05rem; line-height: 1.7; }
+.contact-layout { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(17rem, 1fr); align-items: start; gap: clamp(2rem, 5vw, 4rem); }
+.contact-form { min-width: 0; border-top: 3px solid var(--gold-500); }
+.contact-form select, .contact-form textarea { width: 100%; min-height: 3rem; padding: 0.72rem 0.85rem; color: var(--ink); border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--cream-50); font: inherit; }
+.contact-form textarea { resize: vertical; line-height: 1.55; }
+.contact-form textarea:focus-visible, .contact-preview summary:focus-visible { outline: 3px solid var(--gold-500); outline-offset: 3px; }
+.button--secondary { color: var(--ink); border: 1px solid var(--border); background: var(--cream-100); }
+.button--secondary:hover { background: var(--cream-200); }
+.contact-form .contact-help { margin: 0; color: var(--muted); font-size: 0.8rem; line-height: 1.6; }
+.contact-destination { min-width: 0; padding: 0; margin: 0; border: 0; }
+.contact-destination legend { padding: 0; margin-bottom: 0.7rem; font-size: 0.9rem; font-weight: 750; }
+.contact-destination legend span { color: var(--muted); font-weight: 400; }
+.contact-bag-choice { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; padding-top: 0.5rem; }
+.contact-bag-choice label { display: flex; align-items: center; gap: 0.65rem; font-size: 0.88rem; font-weight: 700; }
+.contact-bag-choice input { width: 1.1rem; height: 1.1rem; accent-color: var(--green-800); }
+.contact-bag-choice .text-link { font-size: 0.8rem; }
+.contact-items { padding: 0 1rem; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--cream-50); }
+.contact-item { display: flex; justify-content: space-between; gap: 1rem; padding: 0.9rem 0; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
+.contact-item > div { display: grid; gap: 0.2rem; min-width: 0; overflow-wrap: anywhere; }
+.contact-item > span { white-space: nowrap; }
+.contact-item small, .contact-items > p { color: var(--muted); }
+.contact-items > p { margin: 0.8rem 0; font-size: 0.75rem; }
+.contact-aside { padding: 1rem 0; }
+.contact-aside > h2 { margin: 0 0 1.2rem; font: 500 clamp(2.3rem, 4vw, 3.25rem)/1.05 var(--serif); letter-spacing: -0.035em; }
+.contact-aside > p:not(.eyebrow) { color: var(--muted); line-height: 1.75; }
+.contact-steps { display: grid; gap: 1.6rem; padding: 1.5rem 0 2rem; margin: 0; list-style: none; }
+.contact-steps li { display: flex; gap: 1rem; }
+.contact-steps li > span { padding-top: 0.15rem; color: var(--gold-600); font: 1.15rem var(--serif); }
+.contact-steps h3 { margin: 0 0 0.3rem; font-size: 0.95rem; }
+.contact-steps p { margin: 0; color: var(--muted); font-size: 0.86rem; line-height: 1.65; }
+.contact-direct { padding: 1.5rem 0; margin-bottom: 1.5rem; border-block: 1px solid var(--border); }
+.contact-direct p { margin: 0 0 0.5rem; font-size: 0.83rem; color: var(--muted); }
+.contact-direct a { font-weight: 750; overflow-wrap: anywhere; text-decoration: underline; text-underline-offset: 0.25rem; }
+.contact-preview { min-width: 0; padding-top: 1.5rem; border-top: 1px solid var(--border); }
+.contact-preview h3 { margin: 0; font: 1.65rem var(--serif); }
+.contact-preview p { font-size: 0.86rem; line-height: 1.6; }
+.contact-recipient { overflow-wrap: anywhere; }
+.contact-actions { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; margin: 1rem 0; }
+.contact-preview summary { margin: 1rem 0; cursor: pointer; font-size: 0.86rem; text-decoration: underline; text-underline-offset: 0.2rem; }
+.contact-order-link { margin-top: 1rem; }
+.contact-order-note { margin: 0.65rem 0 0; color: var(--muted); font-size: 0.8rem; line-height: 1.6; }
+.bag-summary > .contact-order-note { margin-top: 0.75rem; }
+.contact-checkout-note { margin: 0 0 2rem; padding: 1rem 1.25rem; border: 1px solid var(--border); border-left: 3px solid var(--gold-500); border-radius: var(--radius-sm); background: var(--cream-100); }
+.contact-checkout-note p { margin: 0 0 0.45rem; }
+.announcement-bar .announcement-contact { display: inline; text-decoration: underline; text-underline-offset: 0.15rem; }
+@media (min-width: 851px) and (max-width: 1100px) {
+  .site-header { grid-template-columns: 12rem minmax(10rem, 1fr) auto; gap: 1rem; }
+  .site-nav { gap: 0.8rem; }
+}
+@media (max-width: 850px) { .contact-layout { grid-template-columns: 1fr; } .contact-aside { max-width: 38rem; } }

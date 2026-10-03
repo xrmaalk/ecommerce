@@ -140,6 +140,7 @@ onBeforeUnmount(() => { controller?.abort(); closeImageViewer() })
         </div>
         <p class="product-detail-stock" aria-live="polite">{{ product.has_variants && !selectedVariant && product.variants?.length ? 'Select an option to see availability.' : available ? 'In stock' : 'Sold out' }}</p>
         <button type="button" class="button button--primary button--wide" :disabled="!available" @click="addProduct">{{ product.has_variants && !selectedVariant && product.variants?.length ? 'Select an option' : available ? 'Add to bag' : 'Sold out' }}</button>
+        <RouterLink v-if="!product.has_variants || selectedVariant" class="button button--secondary button--wide contact-order-link" :to="{ name: 'contact', query: { item: product.name, product: product.slug, option: selectedVariant?.name, sku: selectedVariant?.sku || product.sku } }">Request this item by email</RouterLink>
         <RouterLink class="text-link product-detail-back" :to="{ name: 'home', hash: '#catalog' }">Continue shopping</RouterLink>
         <section class="product-description" aria-labelledby="product-description-title">
           <h2 id="product-description-title">About this product</h2>

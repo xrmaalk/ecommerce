@@ -9,6 +9,7 @@ import BrandLogo from "../branding/BrandLogo.vue"
       <p>Daily Routine; Refined.</p>
     </div>
     <nav aria-label="Footer navigation">
+      <RouterLink :to="{ name: 'contact' }">Contact us & order requests</RouterLink>
       <a
         href="https://organicarchives.organicemperor.com"
         target="_blank"

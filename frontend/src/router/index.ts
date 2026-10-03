@@ -6,6 +6,12 @@ const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     {
+      path: "/contact",
+      name: "contact",
+      component: () => import("../views/ContactView.vue"),
+      meta: { title: "Contact Us & Order Requests" },
+    },
+    {
       path: "/",
       name: "home",
       component: () => import("../views/HomeView.vue"),

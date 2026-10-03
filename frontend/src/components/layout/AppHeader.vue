@@ -34,6 +34,7 @@ const debouncedSearch = useDebouncedFn(() => void submitSearch())
     </form>
     <nav class="site-nav" aria-label="Primary navigation">
       <RouterLink :to="{ name: 'home', hash: '#catalog' }">Shop</RouterLink>
+      <RouterLink :to="{ name: 'contact' }">Contact us</RouterLink>
       <RouterLink class="account-link" :to="{ name: auth.isAuthenticated ? 'account-settings' : 'account' }"
         :aria-label="auth.isAuthenticated ? `Account for ${auth.displayName}` : 'Sign in or create an account'">
         {{ auth.isAuthenticated ? auth.displayName : "Account" }}

@@ -2,7 +2,10 @@
   <section class="hero-section" aria-labelledby="hero-title">
     <div class="hero-copy">
       <p class="eyebrow">Daily Routine; Refined.</p>
-      <h1 id="hero-title">Forever Wellness</h1>
+      <h1 id="hero-title">
+        <span class="hero-title__word hero-title__word--forever">Forever</span>
+        <span class="hero-title__word hero-title__word--wellness">Wellness</span>
+      </h1>
       <p class="hero-lede">
         Quality body care, must have shave essentials and comforting organic
         teas and soaps.

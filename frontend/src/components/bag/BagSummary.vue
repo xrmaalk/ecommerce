@@ -20,5 +20,7 @@ function proceed() {
     <p>Taxes and shipping are calculated at checkout.</p>
     <button type="button" class="button button--primary button--wide" aria-describedby="checkout-note" @click="proceed">Proceed to checkout</button>
     <small id="checkout-note" class="checkout-note">Secure PayPal checkout. Sign-in is required.</small>
+    <RouterLink class="button button--secondary button--wide contact-order-link" :to="{ name: 'contact', query: { bag: '1' } }">Request these items by email</RouterLink>
+    <p class="contact-order-note">We’ll confirm availability, shipping and applicable taxes in your quote.</p>
   </section>
 </template>

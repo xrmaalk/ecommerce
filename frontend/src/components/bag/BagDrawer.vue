@@ -49,6 +49,7 @@ onBeforeUnmount(() => document.body.classList.remove("drawer-open"))
             <div><span>Subtotal</span><strong>{{ formatCad(bag.subtotal) }}</strong></div>
             <p>Taxes and shipping calculated at checkout.</p>
             <RouterLink class="button button--primary button--wide" to="/bag" @click="close">View full bag</RouterLink>
+            <RouterLink class="button button--secondary button--wide contact-order-link" :to="{ name: 'contact', query: { bag: '1' } }" @click="close">Request by email</RouterLink>
           </footer>
         </aside>
       </div>

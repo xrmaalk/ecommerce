@@ -163,6 +163,11 @@ exclude the live `.env` file.
 
 ## Commerce configuration
 
+Customers can use the public [contact portal](docs/CONTACT_PORTAL.md) at
+`/contact` to prepare item requests and purchase orders for
+`support@organicemperor.com` while automated checkout services are being set up.
+The email opens for review and sending in the customer's own email app.
+
 Checkout uses PayPal and CAD-denominated flat-rate shipping to Canada and the
 United States. Migration `commerce.0005_configure_initial_shipping_rates`
 activates the agreed initial rates: $15 CAD to Canada and $25 CAD to the United

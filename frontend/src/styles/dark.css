@@ -24,7 +24,12 @@
     radial-gradient(circle at 84% 20%, rgba(219, 165, 45, 0.2), transparent 25%),
     linear-gradient(120deg, #081d16 0%, #123528 56%, #52652f 100%);
 }
-[data-theme="dark"] .hero-copy h1 { color: #f4f7ec; }
+[data-theme="dark"] .hero-copy h1 {
+  --hero-title-gold: #ffd45e;
+  --hero-title-green: #74e9a5;
+  --hero-title-gold-gradient: linear-gradient(115deg, #ffe98f, #ffc64b 55%, #f2ad2e);
+  --hero-title-green-gradient: linear-gradient(115deg, #c5f7a1, #74e9a5 55%, #33cc8b);
+}
 [data-theme="dark"] .hero-lede { color: #b5c5bb; }
 [data-theme="dark"] .hero-promises { color: #c3d2c8; }
 [data-theme="dark"] .hero-art__halo { border-color: rgba(239, 212, 119, 0.22); background: rgba(239, 212, 119, 0.04); box-shadow: inset 0 0 5rem rgba(239, 212, 119, 0.08); }

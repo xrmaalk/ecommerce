@@ -20,10 +20,40 @@
   padding-right: 2rem;
 }
 .hero-copy h1 {
+  --hero-title-gold: #986008;
+  --hero-title-green: #167044;
+  --hero-title-gold-gradient: linear-gradient(115deg, #805008, #b87908 55%, #986008);
+  --hero-title-green-gradient: linear-gradient(115deg, #095538, #16744d 55%, #096944);
   margin: 0 0 1.5rem;
   color: var(--green-950);
-  font: 500 clamp(3.7rem, 7.5vw, 7.4rem)/0.88 var(--serif);
-  letter-spacing: -0.055em;
+  font: 600 clamp(3.7rem, 7.5vw, 7.4rem)/0.96 var(--serif);
+  letter-spacing: -0.05em;
+}
+.hero-title__word {
+  display: block;
+  width: fit-content;
+}
+.hero-title__word--forever {
+  --hero-title-gradient: var(--hero-title-gold-gradient);
+  color: var(--hero-title-gold);
+}
+.hero-title__word--wellness {
+  --hero-title-gradient: var(--hero-title-green-gradient);
+  color: var(--hero-title-green);
+}
+@supports (background-clip: text) or (-webkit-background-clip: text) {
+  .hero-title__word {
+    background-image: var(--hero-title-gradient);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+}
+@media (forced-colors: active) {
+  .hero-copy .hero-title__word {
+    color: CanvasText;
+    background: none;
+  }
 }
 .hero-lede {
   max-width: 34rem;
