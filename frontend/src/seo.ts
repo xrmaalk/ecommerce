@@ -58,7 +58,9 @@ export function siteMetadata(site: Site, path = "/", title?: string): Metadata {
 }
 
 function shareImageUrl(site: Site, kind: "products" | "posts", slug: string, source: string) {
-  return `https://api.organicemperor.com/site/${site}/${kind}/${encodeURIComponent(slug)}/share-image.png?v=${encodeURIComponent(new URL(source).pathname)}`
+  // Match the backend Archives frame revision so old white cards are refetched.
+  const frame = site === "archives" ? "&frame=101a16" : ""
+  return `https://api.organicemperor.com/site/${site}/${kind}/${encodeURIComponent(slug)}/share-image.png?v=${encodeURIComponent(new URL(source).pathname)}${frame}`
 }
 
 export function productMetadata(product: Product): Metadata {

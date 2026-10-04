@@ -15,9 +15,10 @@ WIDTH, HEIGHT = 1200, 630
 PADDING = 48
 MAX_PIXELS = 25_000_000
 MAX_BYTES = 20 * 1024 * 1024
+ARCHIVES_CARD_BACKGROUND = "#101a16"
 BRANDS = {
     "storefront": ("organicemperor-purrcilla-preview.png", "#09291f"),
-    "archives": ("OA-dage-preview.png", "#000000"),
+    "archives": ("OA-dage-preview.png", ARCHIVES_CARD_BACKGROUND),
 }
 
 
@@ -60,7 +61,8 @@ def share_image(request, site, slug=None):
                 raise ValueError("Sharing source exceeds the byte limit")
             # Open only the model's storage file; never fetch a client-supplied URL.
             with image.open("rb") as source:
-                content = render_card(source, "#ffffff")
+                background = ARCHIVES_CARD_BACKGROUND if site == "archives" else "#ffffff"
+                content = render_card(source, background)
         except (OSError, ValueError, UnidentifiedImageError, Image.DecompressionBombError):
             # Missing/corrupt/oversized media uses the same safe brand fallback.
             pass

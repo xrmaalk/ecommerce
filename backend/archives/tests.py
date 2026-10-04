@@ -94,20 +94,22 @@ class ArchivesPreviewTests(APITestCase):
 
     @override_settings(
         CORS_ALLOWED_ORIGINS=["https://organicarchives.organicemperor.com"],
-        ALLOWED_HOSTS=["testserver", "admin.organicemperor.com"],
+        ALLOWED_HOSTS=["testserver", "api.organicemperor.com", "admin.organicemperor.com"],
     )
     def test_preview_uses_admin_origin_session_and_allows_credentialed_archives_origin(self):
         self.client.force_login(self.publisher)
-        response = self.client.get(
-            self.preview_url, HTTP_HOST="admin.organicemperor.com",
-            HTTP_ORIGIN="https://organicarchives.organicemperor.com",
-            HTTP_X_FORWARDED_PROTO="https",
-        )
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response["Access-Control-Allow-Origin"], "https://organicarchives.organicemperor.com")
-        self.assertEqual(response["Access-Control-Allow-Credentials"], "true")
-        self.assertEqual(response.json()["edit_url"],
-                         f"https://admin.organicemperor.com/admin/archives/post/{self.draft.pk}/change/")
+        for host in ("api.organicemperor.com", "admin.organicemperor.com"):
+            with self.subTest(publisher_host=host):
+                response = self.client.get(
+                    self.preview_url, HTTP_HOST=host,
+                    HTTP_ORIGIN="https://organicarchives.organicemperor.com",
+                    HTTP_X_FORWARDED_PROTO="https",
+                )
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response["Access-Control-Allow-Origin"], "https://organicarchives.organicemperor.com")
+                self.assertEqual(response["Access-Control-Allow-Credentials"], "true")
+                self.assertEqual(response.json()["edit_url"],
+                                 f"https://{host}/admin/archives/post/{self.draft.pk}/change/")
         forbidden_origin = self.client.get(self.preview_url, HTTP_ORIGIN="https://untrusted.example")
         self.assertNotIn("Access-Control-Allow-Origin", forbidden_origin)
 

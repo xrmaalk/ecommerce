@@ -35,7 +35,7 @@ export const isDemo = import.meta.env.VITE_ARCHIVES_DEMO === "true"
 export const apiBase = (import.meta.env.VITE_ARCHIVES_API_BASE_URL || (import.meta.env.DEV ? "/api/v1" : "https://api.organicemperor.com/api/v1")).replace(/\/+$/, "")
 export const publisherUrl = import.meta.env.VITE_ARCHIVES_ADMIN_URL || (import.meta.env.DEV
   ? "/admin/archives/post/"
-  : "https://admin.organicemperor.com/admin/archives/post/")
+  : "https://api.organicemperor.com/admin/archives/post/")
 
 export class ArchiveError extends Error {
   constructor(public status: number) { super("Could not load the archives") }
@@ -46,7 +46,8 @@ export async function getArchive<T>(path: string, signal?: AbortSignal): Promise
   return response.json() as Promise<T>
 }
 export async function getArchivePreview(id: string, signal?: AbortSignal): Promise<PostPreview> {
-  // Production uses the admin origin; local development proxies it on this origin.
+  // Use the same host as Publisher login: Django session cookies are host-bound.
+  // Local development proxies the admin endpoint on the Archives origin.
   const response = await fetch(`${publisherUrl.replace(/\/+$/, "")}/${encodeURIComponent(id)}/preview-data/`, {
     signal, credentials: "include", cache: "no-store", redirect: "manual",
     headers: { Accept: "application/json" },

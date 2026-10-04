@@ -174,14 +174,16 @@ onUnmounted(() => controller?.abort())
       </h1>
       <p>
         {{
-          preview && !missing
+          preview && denied
             ? "Sign in through Publisher login, then try again. Your account needs Archives post permission."
+            : preview && !missing
+            ? "The publisher preview could not be reached. Your publisher session may still be active. Please try again."
             : missing
             ? "It may have moved or is no longer published."
             : "Please try again in a moment."
         }}
       </p>
-      <a v-if="preview && !missing" class="text-link" :href="publisherUrl">Publisher login →</a>
+      <a v-if="preview && denied" class="text-link" :href="publisherUrl">Publisher login →</a>
       <button v-if="!missing" class="solid-button" @click="load">
         Try again</button
       ><RouterLink v-else class="text-link" to="/"

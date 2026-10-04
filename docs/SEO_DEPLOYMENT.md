@@ -1,159 +1,108 @@
 # Product and article sharing metadata
 
-Public paths remain `/products/<slug>` and `/posts/<slug>` (Vue history routing).
-There are no fragment-based detail URLs to migrate. Listing anchors such as
-`/#catalog` still work. No share buttons existed that needed changing.
+Public reader URLs remain `/products/<slug>` on OrganicEmperor and `/posts/<slug>`
+on OrganicArchives. The current hosting plan cannot proxy requests to Django,
+so the packaged `.htaccess` uses the crawler-only routing requested for this
+installation. Normal browsers receive the styled Vue application on the public
+frontend host. Recognised search and sharing crawlers receive a temporary 302
+redirect to a fixed Django HTML endpoint. Canonical metadata continues to name
+the public frontend URL.
 
-Both applications update the head during navigation, including back/forward.
-Django additionally returns the **built Vue HTML shell** with an escaped head
-at `/site/storefront/products/<slug>` and `/site/archives/posts/<slug>`. This is
-used for every visitor through the public-domain reverse proxy, with no bot
-detection, external fetches, or metadata cache. Product visibility and scheduled
-article publication use the same filters as the public APIs. Missing/private
-content returns HTTP 404, even for authenticated staff. Missing build shells
-return 503 for otherwise-public content, rather than misleading generic HTML.
+Django uses the same public visibility filters and saved content as the reader.
+Its Archives HTML includes the complete escaped article text before JavaScript,
+plus the cover and ordered sections. The API article endpoint now serves a
+standalone responsive reader with its own stylesheet at
+`/site/archives/reader.css?v=<content-hash>`, so shared API links display correctly
+without a frontend `/assets/` directory or Vue router. Navigation links return
+to the canonical OrganicArchives site. The stylesheet is included in the
+backend ZIP and served by Django directly; no new collectstatic step is needed.
+It follows the browser's light/dark preference and preserves complete images.
+Drafts, undated posts and future posts
+remain excluded from all public detail, sharing-image and sitemap endpoints,
+even for staff or a crawler user agent. Only authenticated, authorised publisher
+sessions can use `/admin/archives/post/<id>/preview-data/`.
 
-Archives article responses also contain the title, complete excerpt, byline,
-cover and ordered body sections inside `#app` before JavaScript runs. Vue replaces
-this content on mount. The fallback uses a conservative Markdown subset for
-headings, lists, quotes and paragraphs; inline Markdown links/emphasis become
-plain words. Heading and quote blocks stay literal text, as in the reader.
-All text is escaped, uploaded media uses the trusted HTTPS origins below, and
-embedded videos become links to validated YouTube/Vimeo players. No remote
-content is fetched by Django. A missing or duplicate article mount returns 503.
-This follows [Google's guidance on serving content in the initial HTML](https://developers.google.com/search/docs/crawling-indexing/javascript/javascript-seo-basics).
+## Publisher preview host
 
-Archives also serves a dynamic `/sitemap.xml` and `/robots.txt`. The sitemap lists
-the canonical homepage and public posts only, with publication/update dates;
-drafts, undated and scheduled posts are excluded even for staff. Both endpoints
-accept GET/HEAD and use no-store so withdrawals take effect immediately.
+Production **Publisher login** and draft-preview requests use
+`https://api.organicemperor.com/admin/archives/post/`. Publishers must sign in on
+that host; a session created on `admin.organicemperor.com` is a separate cookie.
+An installation using another admin host must set `VITE_ARCHIVES_ADMIN_URL` to
+that same login host and rebuild. Preview requests include credentials, disable
+caching and never follow login redirects. Connection failures offer retry
+rather than incorrectly telling an already signed-in publisher to log in.
 
 ## Build and deploy one matching release
-
-From the repository root (Windows):
 
 ```powershell
 .\.org_env\Scripts\python.exe scripts/package_frontends.py
 .\.org_env\Scripts\python.exe scripts/package_backend.py
 ```
 
-The first command always typechecks and builds both sites, validates assets,
-creates `dist.zip` / `dist-archives.zip`, and writes generated HTML to
-`backend/site_shells/`. The second includes only those two validated generated
-shells in `backend.zip`, and fails if they do not match the builds. Deploy all
-three archives as one release. No database migrations or new dependencies are
-required. Do not edit the generated shells or hard-code bundle hashes.
+Both frontends are rebuilt and typechecked, then every entry-document asset
+reference and ZIP is validated. The backend package includes the generated
+`site_shells/storefront.html` and `archives.html`, with bytes matching their
+frontend entry documents. Deploy the backend and both frontends together,
+retaining old hashed assets during the rollout. Explicitly overwrite the hidden
+`.htaccess` file. No new dependencies or database migrations are required.
 
-1. Upload the frontend assets to both existing document roots, retaining old
-   hashed assets while the release rolls out. Keep the current index documents
-   and rewrite rules until the backend is ready.
-2. Extract `backend.zip` into the existing Django deployment. Confirm
-   `backend/site_shells/storefront.html` and `archives.html` exist, then restart
-   Passenger using the hosting panel's existing restart action.
-3. Verify the two Django HTML endpoints at `https://api.organicemperor.com/site/…`
-   with actual public slugs. They must return 200, `text/html`, the correct head,
-   and the same `/assets/…` references as the frontend release.
-4. Install the updated frontend `index.html` and `.htaccess` files. Enable the
-   HTTPS proxy configuration below **before** exposing the new rewrite rules.
-   Show hidden files in the hosting file manager and explicitly overwrite the
-   existing `.htaccess`; extracting only newer files can leave an older rule in
-   place. Frontend ZIPs now give `.htaccess` the same fresh timestamp as the entry
-   document, rather than the fixed timestamp used for immutable assets.
-   An atomic release switch is preferable where the host supports it.
-5. Bypass/purge any CDN or LiteSpeed full-page cache for `/products/*`, `/posts/*`,
-   `/sitemap.xml`, `/robots.txt` and `/site/*`. Keep hashed asset caching. Dynamic responses carry
-   `Cache-Control: no-cache, no-store, must-revalidate` so edits and withdrawals
-   take effect immediately. Check that the host respects this header and 404s.
+## Current routing
 
-## Required public-domain routing
+| Public request | Regular browser | Recognised crawler |
+| --- | --- | --- |
+| `/products/<slug>` | Storefront Vue shell | 302 to `https://api.organicemperor.com/site/storefront/products/<slug>` |
+| `/posts/<slug>` | Archives Vue shell | 302 to `https://api.organicemperor.com/site/archives/posts/<slug>` |
+| `/preview/<id>` | Private preview, publisher session required | Same protected preview; no crawler bypass |
 
-The packaged `.htaccess` has fixed upstream proxy rules before SPA fallback:
+The two crawler rules check a specific list of search and sharing user agents;
+other agents stay on the frontend. User agents are routing hints, never
+credentials. Both detail variants carry `Vary: User-Agent` and no-store headers
+through `mod_setenvif` and `mod_headers`. The temporary redirects avoid declaring
+that public article URLs have permanently moved to the API. `/assets/*` never
+uses the SPA fallback, so a missing stylesheet or script returns 404.
 
-| Public domain and path | Django upstream |
-| --- | --- |
-| `organicemperor.com/products/<slug>` | `https://api.organicemperor.com/site/storefront/products/<slug>` |
-| `organicarchives.organicemperor.com/posts/<slug>` | `https://api.organicemperor.com/site/archives/posts/<slug>` |
-| `organicarchives.organicemperor.com/sitemap.xml` | `https://api.organicemperor.com/site/archives/sitemap.xml` |
-| `organicarchives.organicemperor.com/robots.txt` | `https://api.organicemperor.com/site/archives/robots.txt` |
+Archives `/sitemap.xml` and `/robots.txt` redirect to their fixed Django
+endpoints for everyone. The sitemap lists public canonical posts only. Trailing
+slash article/product URLs first normalize on their frontend host with 301.
+Malformed detail paths return 404; valid browser paths load the Vue reader,
+which checks post/product availability through the public API.
 
-Trailing slash detail URLs redirect to their canonical non-slash URL. Query
-strings do not change metadata. Responses must preserve the upstream status,
-content type, cache headers and body. Route these paths for **all** user agents;
-never serve `index.html` on a missing/private detail page. `/assets/*`, `/media/*`,
-existing APIs, admin, account and checkout routing remain as before.
+This is a hosting workaround. A future hosting-supported reverse proxy or SSR
+can serve initial metadata on the public URL for every visitor. Google's
+[dynamic-rendering guidance](https://developers.google.com/search/docs/crawling-indexing/javascript/dynamic-rendering)
+describes crawler-specific rendering as a workaround and requires equivalent
+content. The repository preserves the same saved public content in both views.
+Apache documents conditional header handling in
+[mod_rewrite](https://httpd.apache.org/docs/2.4/mod/mod_rewrite.html).
 
-For Apache, the host must enable `mod_rewrite`, `mod_proxy`, `mod_proxy_http`,
-`mod_ssl`, and the existing `.htaccess` permissions. In both HTTPS frontend
-virtual hosts, set the following via DirectAdmin's supported custom vhost
-configuration (these directives cannot be set in `.htaccess`):
+## Verify after deployment
 
-```apache
-ProxyRequests Off
-SSLProxyEngine On
-SSLProxyVerify require
-SSLProxyCheckPeerName On
-# Point SSLProxyCACertificateFile at the host's actual trusted CA bundle.
-# Debian/Ubuntu example:
-SSLProxyCACertificateFile /etc/ssl/certs/ca-certificates.crt
-```
-
-Validate the generated webserver configuration before reload. The API's TLS
-certificate must validate. See [Apache proxy documentation](https://httpd.apache.org/docs/2.4/mod/mod_proxy.html)
-and [HTTPS proxy directives](https://httpd.apache.org/docs/2.4/mod/mod_ssl.html#sslproxyengine).
-
-On LiteSpeed/DirectAdmin, ask the host to configure a **Web Server external
-application** for the fixed HTTPS API upstream. LiteSpeed does not automatically
-create a proxy target for a domain name, even if it is hosted on the same server.
-The provider must configure the backend address, HTTPS connection and API Host
-header, then enable the two path mappings. See
-[LiteSpeed proxy setup](https://docs.litespeedtech.com/lsws/cp/cpanel/rewrite-proxy/).
-Apache's `SSLProxyEngine` instruction alone does not establish this LiteSpeed
-external application. If `[P]` is unavailable in the hosting plan, configure
-the **same two mappings** through the host's reverse proxy/vhost facility before
-the static SPA fallback, preserving 404 and no-store. Do not replace `[P]` with
-a redirect to the API domain. The exact host facility depends on whether it
-runs Apache, LiteSpeed Enterprise, or OpenLiteSpeed; this repository cannot
-configure that account-level capability. A public URL returning the old static
-head means routing is incomplete. A 500/503 indicates proxy/build configuration
-needs fixing. Browser-only head updates do not complete deployment.
-
-If the frontend returns the emblem but Django returns the article's cover,
-compare the active `.htaccess` in the Archives document root with
-`frontend/public/.htaccess`. The `^posts/` proxy must appear **before** the
-`RewriteRule ^ index.html [L]` catch-all. The active file should contain:
-
-```apache
-RewriteCond %{HTTP_HOST} ^organicarchives\.organicemperor\.com$ [NC]
-RewriteRule ^posts/([A-Za-z0-9_-]+)$ https://api.organicemperor.com/site/archives/posts/$1 [P,L]
-```
-
-If that rule is present yet the frontend still serves the static document,
-check parent-directory or vhost rewrite rules that run earlier, the actual
-subdomain document root, and LiteSpeed's rewrite configuration/logs. If it
-returns 500 after the rule is installed, ask the host to check the fixed proxy
-external application. Keep TLS verification enabled. A browser redirect or
-JavaScript metadata update does not replace this server routing.
-
-To distinguish rules that are not taking effect from a proxy-target problem,
-request a valid detail URL with a trailing slash **without following redirects**:
+Check actual response headers without following redirects:
 
 ```powershell
-curl.exe -sS -D - -o NUL https://organicarchives.organicemperor.com/posts/male-cats-a-urinary-diet/
+curl.exe -sS -D - -o NUL -A "Mozilla/5.0" https://organicarchives.organicemperor.com/posts/REAL-PUBLIC-SLUG
+curl.exe -sS -D - -o NUL -A "Googlebot/2.1" https://organicarchives.organicemperor.com/posts/REAL-PUBLIC-SLUG
 ```
 
-This file's explicit rule should return 308 with the non-slash frontend URL in
-`Location`. If it instead returns the static index with 200, check the active
-HTTPS document root (including any separate `private_html` root), that root's
-`.htaccess`, and earlier parent/vhost rewrites before diagnosing the proxy.
-The file contents alone do not prove that the request reaches that file.
+The browser request should return 200 with the frontend shell; the crawler
+request should return 302 with the fixed API URL in `Location`. Both should have
+`Vary: User-Agent` and no-store. Open the canonical frontend article and verify
+its actual stylesheet and module URLs load from the frontend `/assets/` path.
+The direct API HTML endpoint is the crawler upstream and a styled reader for
+shared API links. Its stylesheet must return 200 and `text/css` from the API's
+`/site/archives/reader.css` path. Frontend bundles are not hosted at the API's
+`/assets/` path and the standalone reader never requests them. The article HTML
+remains no-store; correctly versioned stylesheet requests are publicly cached.
 
-If the host uses **OpenLiteSpeed**, it must reload the rewrite configuration
-after `.htaccess` changes. DirectAdmin normally triggers this when the file is
-saved in File Manager; do not assume ZIP extraction also reloads it. This
-requirement differs from LiteSpeed Enterprise. See
-[DirectAdmin's OpenLiteSpeed guidance](https://docs.directadmin.com/webservices/openlitespeed/index.html#how-to-make-ols-automatically-reload-after-htaccess-changes).
-
-See [hosting handoff with observed response details](SEO_HOSTING_HANDOFF.md).
+Purge old CDN/LiteSpeed detail-page responses after installing these rules.
+Previously issued 301/308 redirects may also remain in a browser cache; use a
+fresh browser session to distinguish those from the current server response.
+If OpenLiteSpeed is used, reload rewrite configuration through DirectAdmin's
+normal file-save/reload workflow; ZIP extraction alone may not reload it. See
+[DirectAdmin's guidance](https://docs.directadmin.com/webservices/openlitespeed/index.html#how-to-make-ols-automatically-reload-after-htaccess-changes).
+Verify that the hosting server supports the header directives before calling
+the deployment complete. Local rule regression tests model the configured
+conditions; they do not run the production webserver.
 
 ## Trusted media origins
 
@@ -177,8 +126,11 @@ instructions; putting wide dimensions on the original portrait emblem would
 not prevent a platform from cropping it.
 
 Django serves the full source image, proportionally contained within a wide
-canvas with 48-pixel padding. Product images and article covers use a white
-background; the brand fallbacks use their brand backgrounds. Original reader
+canvas with 48-pixel padding. Archives covers and their brand fallback use the
+night-mode green `#101a16`; product images retain a white background. The
+Archives article image URL includes `frame=101a16` in both server and browser
+metadata to identify the changed padding for social caches. This parameter
+does not allow visitors to choose a background or source file. Original reader
 and gallery images are unchanged. The public image endpoints are:
 
 ```text
@@ -230,9 +182,10 @@ sharing image. Existing accounts, carts, checkout and publisher previews should
 still work. Static listing heads retain the appropriate brand image, including
 `https://api.organicemperor.com/site/archives/share-image.png`.
 
-For article crawling, raw HTML must also include `<div id="app"><article>` and
-the actual body text before JavaScript. Confirm it contains one article and that
-Vue replaces the fallback normally. Fetch the public Archives `/sitemap.xml`
+For article crawling, raw API HTML must also include `<div id="app"><article>`
+and the actual body text. Confirm it contains one styled article and no Vue
+module script; canonical frontend links still open the interactive Vue reader.
+Fetch the public Archives `/sitemap.xml`
 and `/robots.txt`: expect XML and plain text respectively, rather than the SPA
 shell. Verify the sitemap lists public canonical post URLs, excludes unpublished
 content and removes a withdrawn post. The robots file must advertise the public
@@ -249,6 +202,5 @@ may retain their original preview. Do not add arbitrary query strings to the
 canonical URL as a cache workaround.
 
 Repository validation covers Django raw HTML, visibility, public local media,
-safe values, browser route changes and packaging consistency. Production proxy
-support, public asset access and actual platform recrawls require the above
+safe values, browser route changes and packaging consistency. Production crawler routing, public asset access and actual platform recrawls require the above
 deployment verification; they have not been performed by editing this repo.

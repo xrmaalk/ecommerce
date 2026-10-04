@@ -1,4 +1,5 @@
-"""Public HTML shells: the same Vue application, with metadata before JavaScript."""
+"""Public metadata shells and the standalone Archives article reader."""
+import hashlib
 import html
 import logging
 import re
@@ -9,11 +10,13 @@ from urllib.parse import quote, urljoin, urlsplit
 from django.conf import settings
 from django.http import HttpResponse
 from django.template.loader import render_to_string
+from django.urls import reverse
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_safe
 
 from archives.models import Post, video_embed_url
 from catalog.models import Product
+from .share_images import ARCHIVES_CARD_BACKGROUND
 
 START = "<!-- page-metadata:start -->"
 END = "<!-- page-metadata:end -->"
@@ -102,7 +105,8 @@ def site_metadata(site, path="/"):
 def share_image_url(site, kind, slug, source):
     # A changed upload has a new URL for social caches, while visibility is checked on every fetch.
     version = quote(urlsplit(source).path, safe="")
-    return f"https://api.organicemperor.com/site/{site}/{kind}/{quote(slug, safe='')}/share-image.png?v={version}"
+    frame = "&frame=" + ARCHIVES_CARD_BACKGROUND.lstrip("#") if site == "archives" else ""
+    return f"https://api.organicemperor.com/site/{site}/{kind}/{quote(slug, safe='')}/share-image.png?v={version}{frame}"
 
 
 def product_metadata(product):
@@ -143,6 +147,7 @@ def post_metadata(post):
 
 
 APP_MOUNT = '<div id="app"></div>'
+ARCHIVE_READER_CSS = Path(settings.BASE_DIR) / "static" / "seo" / "archives-reader.css"
 
 
 def inline_text(value):
@@ -256,9 +261,8 @@ def render_block(block):
 def render_post_body(post):
     """Server-rendered article body.
 
-    Crawlers (and readers without JavaScript) receive the full article text in
-    the HTML. The Vue app replaces this content when it mounts, so interactive
-    behavior is unchanged.
+    Crawlers and readers receive the full escaped article in the API HTML.
+    The standalone reader displays this content without a frontend router.
     """
     parts = ["<article>"]
     title = post.title
@@ -288,7 +292,7 @@ def render_post_body(post):
     return "".join(parts)
 
 
-def html_response(site, metadata, status=200, body_html=""):
+def html_response(site, metadata, status=200, body_html="", standalone_article=False):
     try:
         shell = (Path(settings.SEO_SHELL_DIR) /
                  f"{site}.html").read_bytes().decode("utf-8")
@@ -298,16 +302,28 @@ def html_response(site, metadata, status=200, body_html=""):
             raise ValueError("Missing/duplicate article mount point")
         before, rest = shell.split(START)
         _, after = rest.split(END)
+        if standalone_article:
+            stylesheet_version = hashlib.sha256(ARCHIVE_READER_CSS.read_bytes()).hexdigest()[:12]
     except (OSError, ValueError):
         logging.getLogger(__name__).error(
             "Missing/invalid SEO shell for %s; package the frontend and backend together", site)
         return HttpResponse("Page unavailable" if status == 404 else "Frontend build unavailable", status=404 if status == 404 else 503)
-    # Django autoescapes both attribute values and title text. Shell scripts stay byte-for-byte intact.
+    # Django autoescapes both attribute values and title text.
     head = render_to_string("seo/head.html", metadata)
-    page = before + START + head + END + after
-    if body_html:
-        # Crawlers read this; the Vue app replaces it on mount.
-        page = page.replace(APP_MOUNT, f'<div id="app">{body_html}</div>', 1)
+    if standalone_article:
+        # This API URL has no frontend router or /assets/ directory. Serve the
+        # escaped saved article with its own stylesheet and canonical links.
+        page = render_to_string("seo/archives_reader.html", {
+            "head_html": head, "body_html": body_html, "missing": status == 404,
+            "archives_origin": SITES["archives"]["origin"],
+            "canonical": metadata["canonical"],
+            "reader_css_url": reverse("seo-archives-css") + "?v=" + stylesheet_version,
+        })
+    else:
+        # The storefront shell's scripts stay byte-for-byte intact.
+        page = before + START + head + END + after
+        if body_html:
+            page = page.replace(APP_MOUNT, f'<div id="app">{body_html}</div>', 1)
     response = HttpResponse(page, status=status)
     if status == 404:
         response["X-Robots-Tag"] = "noindex"
@@ -331,7 +347,24 @@ def post_page(request, slug):
     metadata = post_metadata(post) if post else site_metadata(
         "archives", "/posts/" + quote(slug, safe=""))
     body_html = render_post_body(post) if post else ""
-    return html_response("archives", metadata, 200 if post else 404, body_html)
+    return html_response("archives", metadata, 200 if post else 404, body_html, standalone_article=True)
+
+
+@require_safe
+def archives_reader_css(request):
+    """Serve this one packaged public asset without a collectstatic dependency."""
+    try:
+        content = ARCHIVE_READER_CSS.read_bytes()
+    except OSError:
+        return HttpResponse("Stylesheet unavailable", status=404, content_type="text/plain")
+    version = hashlib.sha256(content).hexdigest()[:12]
+    response = HttpResponse(content, content_type="text/css; charset=utf-8")
+    response["X-Content-Type-Options"] = "nosniff"
+    response["Cache-Control"] = (
+        "public, max-age=31536000, immutable" if request.GET.get("v") == version
+        else "public, max-age=0, must-revalidate"
+    )
+    return response
 
 
 ARCHIVES_ORIGIN = SITES["archives"]["origin"]

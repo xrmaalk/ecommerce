@@ -4,7 +4,7 @@ from django.contrib import admin
 from django.http import JsonResponse
 from django.urls import include, path, re_path
 from django.views.static import serve as serve_media
-from .seo import product_page, post_page, archives_sitemap, archives_robots
+from .seo import product_page, post_page, archives_sitemap, archives_robots, archives_reader_css
 from .share_images import share_image
 
 admin.site.site_header = "OrganicEmperor.com Administration"
@@ -27,6 +27,7 @@ def api_root(request):
 
 
 urlpatterns = [
+    path("site/archives/reader.css", archives_reader_css, name="seo-archives-css"),
     path("site/storefront/share-image.png", share_image,
          {"site": "storefront"}, name="seo-storefront-image"),
     path("site/archives/share-image.png", share_image,

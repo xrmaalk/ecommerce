@@ -7,19 +7,27 @@ Options -Indexes
   RewriteRule ^assets/ - [L]
   # Archives SEO: serve the Django sitemap and robots instead of the SPA shell.
   RewriteCond %{HTTP_HOST} ^organicarchives\.organicemperor\.com$ [NC]
-  RewriteRule ^sitemap\.xml$ https://api.organicemperor.com/site/archives/sitemap.xml [P,L]
+  RewriteRule ^sitemap\.xml$ https://api.organicemperor.com/site/archives/sitemap.xml [R=301,L]
   RewriteCond %{HTTP_HOST} ^organicarchives\.organicemperor\.com$ [NC]
-  RewriteRule ^robots\.txt$ https://api.organicemperor.com/site/archives/robots.txt [P,L]
-  # These fixed upstreams serve the Vue shell with public metadata for EVERY visitor.
-  # Hosting must enable HTTPS reverse proxying (see docs/SEO_DEPLOYMENT.md).
+  RewriteRule ^robots\.txt$ https://api.organicemperor.com/site/archives/robots.txt [R=301,L]
+  # Normalize detail URLs on their public frontend host.
   RewriteCond %{HTTP_HOST} ^(www\.)?organicemperor\.com$ [NC]
-  RewriteRule ^products/([A-Za-z0-9_-]+)/$ https://organicemperor.com/products/$1 [R=308,L]
+  RewriteRule ^products/([A-Za-z0-9_-]+)/$ https://organicemperor.com/products/$1 [R=301,L]
   RewriteCond %{HTTP_HOST} ^organicarchives\.organicemperor\.com$ [NC]
-  RewriteRule ^posts/([A-Za-z0-9_-]+)/$ https://organicarchives.organicemperor.com/posts/$1 [R=308,L]
+  RewriteRule ^posts/([A-Za-z0-9_-]+)/$ https://organicarchives.organicemperor.com/posts/$1 [R=301,L]
+  # Hosting cannot proxy these pages. Only recognised search/sharing crawlers
+  # receive the backend HTML; regular browsers keep the styled Vue reader.
+  # Temporary redirects avoid permanently moving the public article/product URL.
   RewriteCond %{HTTP_HOST} ^(www\.)?organicemperor\.com$ [NC]
-  RewriteRule ^products/([A-Za-z0-9_-]+)$ https://api.organicemperor.com/site/storefront/products/$1 [P,L]
+  RewriteCond %{HTTP_USER_AGENT} (Googlebot|Google-InspectionTool|bingbot|BingPreview|DuckDuckBot|YandexBot|Baiduspider|Applebot|facebookexternalhit|Facebot|meta-externalagent|meta-externalfetcher|LinkedInBot|Twitterbot|Slackbot|Discordbot|TelegramBot|WhatsApp) [NC]
+  RewriteRule ^products/([A-Za-z0-9_-]+)$ https://api.organicemperor.com/site/storefront/products/$1 [R=302,L]
   RewriteCond %{HTTP_HOST} ^organicarchives\.organicemperor\.com$ [NC]
-  RewriteRule ^posts/([A-Za-z0-9_-]+)$ https://api.organicemperor.com/site/archives/posts/$1 [P,L]
+  RewriteCond %{HTTP_USER_AGENT} (Googlebot|Google-InspectionTool|bingbot|BingPreview|DuckDuckBot|YandexBot|Baiduspider|Applebot|facebookexternalhit|Facebot|meta-externalagent|meta-externalfetcher|LinkedInBot|Twitterbot|Slackbot|Discordbot|TelegramBot|WhatsApp) [NC]
+  RewriteRule ^posts/([A-Za-z0-9_-]+)$ https://api.organicemperor.com/site/archives/posts/$1 [R=302,L]
+  RewriteCond %{HTTP_HOST} ^(www\.)?organicemperor\.com$ [NC]
+  RewriteRule ^products/[A-Za-z0-9_-]+$ index.html [L]
+  RewriteCond %{HTTP_HOST} ^organicarchives\.organicemperor\.com$ [NC]
+  RewriteRule ^posts/[A-Za-z0-9_-]+$ index.html [L]
   RewriteCond %{HTTP_HOST} ^(www\.)?organicemperor\.com$ [NC]
   RewriteRule ^products/ - [R=404,L]
   RewriteCond %{HTTP_HOST} ^organicarchives\.organicemperor\.com$ [NC]
@@ -29,9 +37,19 @@ Options -Indexes
   RewriteRule ^ index.html [L]
 </IfModule>
 
+<IfModule mod_setenvif.c>
+  SetEnvIf Request_URI "^/(products|posts)/" seo_detail=1
+</IfModule>
+
 <IfModule mod_headers.c>
+  # Never reuse a crawler redirect for a browser request (or the reverse).
+  Header always merge Vary "User-Agent" env=seo_detail
+  Header always set Cache-Control "no-cache, no-store, must-revalidate" env=seo_detail
   # Hashed bundles can be cached; the entry point must discover every new hash.
   <FilesMatch "^index\.html$">
+    # Internal rewrites can rename environment variables; keep the browser
+    # shell's variant header even when seo_detail is no longer available.
+    Header always merge Vary "User-Agent"
     Header always set Cache-Control "no-cache, no-store, must-revalidate"
     Header always set Pragma "no-cache"
     Header always set Expires "0"

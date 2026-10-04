@@ -70,8 +70,8 @@ hashed assets are harmless and can be cleaned up after the new release is live.
 ## Domain map
 
 - `organicemperor.com`: built Vue storefront (`frontend/dist`)
-- `api.organicemperor.com`: Django application and `/api/v1/` endpoints
-- `admin.organicemperor.com`: reverse proxy to the same Django application `/admin/`
+- `api.organicemperor.com`: Django application, `/api/v1/` endpoints, and publisher login at `/admin/archives/post/`
+- `admin.organicemperor.com`: optional reverse proxy to the same Django application `/admin/`
 - `organicarchives.organicemperor.com`: OrganicArchives Vue application (`frontend/dist-archives`)
 
 ## OrganicArchives
@@ -82,6 +82,11 @@ and updates through Django Admin, including drafts and scheduled publication.
 Use **Save and preview** to review the saved article in the Archives layout before
 publication. **Preview saved post** opens an existing draft or scheduled post;
 previews require an active publisher session and Archives post permission.
+Production previews and **Publisher login** use `https://api.organicemperor.com/admin/archives/post/`.
+`VITE_ARCHIVES_ADMIN_URL` must match the host where publishers sign in: the
+`api` and `admin` hosts have separate session cookies. Rebuild Archives after
+changing this Vite setting. Connection failures show retry guidance; only an
+authentication or permission denial asks the publisher to sign in.
 
 For the normal local backend on port `8000`, run `npm --prefix frontend run
 dev:archives` in a second terminal and leave it running. Open Archives at

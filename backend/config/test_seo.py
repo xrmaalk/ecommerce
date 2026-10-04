@@ -71,6 +71,11 @@ class PublicMetadataTests(TestCase):
         Image.new("RGB", (16, 24)).save(content, format="PNG")
         return SimpleUploadedFile(name, content.getvalue(), content_type="image/png")
 
+    def article_nodes(self, content):
+        article = re.search(r'<div id="app">(<article>.*?</article>)</div>', content, re.S)
+        self.assertIsNotNone(article)
+        return Head(article.group(1)).nodes
+
     def parsed(self, path, status=200, **kwargs):
         response = self.client.get(path, **kwargs)
         self.assertEqual(response.status_code, status)
@@ -108,6 +113,7 @@ class PublicMetadataTests(TestCase):
         with Image.open(BytesIO(media.content)) as image:
             self.assertEqual(image.size, (1200, 630))
             self.assertEqual(image.getpixel((600, 315)), (0, 0, 0))
+            self.assertEqual(image.getpixel((0, 0)), (255, 255, 255))
         self.assertEqual(self.client.head("/site/storefront/products/oil").status_code, 200)
         self.assertEqual(self.client.post("/site/storefront/products/oil").status_code, 405)
 
@@ -122,6 +128,16 @@ class PublicMetadataTests(TestCase):
         self.assertEqual(head.values["article:published_time"], [self.post.published_at.isoformat()])
         self.assertEqual(head.values["article:modified_time"], [self.post.updated_at.isoformat()])
         self.assertEqual(head.values["canonical"], ["https://organicarchives.organicemperor.com/posts/article"])
+        # The changed frame has a fresh social-cache URL and the site's night green.
+        self.assertIn("&frame=101a16", head.values["og:image"][0])
+        self.assertEqual(head.values["twitter:image"], head.values["og:image"])
+        media = self.client.get(urlsplit(head.values["og:image"][0]).path)
+        self.assertEqual(media.status_code, 200)
+        with Image.open(BytesIO(media.content)) as image:
+            self.assertEqual(image.size, (1200, 630))
+            for corner in ((0, 0), (1199, 0), (0, 629), (1199, 629)):
+                self.assertEqual(image.getpixel(corner), (16, 26, 22))
+            self.assertEqual(image.getpixel((600, 315)), (0, 0, 0))
 
     def test_fallbacks_and_plain_text_summary(self):
         self.product.short_description = ""
@@ -175,6 +191,8 @@ class PublicMetadataTests(TestCase):
             self.assertEqual(response["Content-Type"], "image/png")
             with Image.open(BytesIO(response.content)) as image:
                 self.assertEqual(image.size, (1200, 630))
+                if site == "archives":
+                    self.assertEqual(image.getpixel((0, 0)), (16, 26, 22))
             self.assertEqual(self.client.head(path).status_code, 200)
             self.assertEqual(self.client.post(path).status_code, 405)
 
@@ -232,7 +250,7 @@ class PublicMetadataTests(TestCase):
         self.assertIn("<p>Gentle cleansing keeps skin calm.</p>", content)
         self.assertIn("<ul><li>Step one</li><li>Step two</li></ul>", content)
         self.assertIn("<blockquote><p>Less is more</p><cite>Editor</cite></blockquote>", content)
-        # ...inside the app mount point the Vue app replaces on load.
+        # ...inside the standalone reader's article container.
         self.assertIn('<div id="app"><article>', content)
 
     def test_post_body_escapes_untrusted_block_content(self):
@@ -280,23 +298,23 @@ class PublicMetadataTests(TestCase):
             with self.subTest(value=value):
                 block = PostBlock.objects.create(post=self.post, kind="embed", video_url=value)
                 content = self.client.get("/site/archives/posts/article").content.decode()
-                nodes = Head(content).nodes
+                nodes = self.article_nodes(content)
                 self.assertFalse(any(tag == "a" and attrs.get("href") for tag, attrs in nodes))
                 block.kind = "video"
                 block.save()
                 content = self.client.get("/site/archives/posts/article").content.decode()
-                self.assertFalse(any(tag == "a" and attrs.get("href") for tag, attrs in Head(content).nodes))
+                self.assertFalse(any(tag == "a" and attrs.get("href") for tag, attrs in self.article_nodes(content)))
                 block.delete()
                 block = PostBlock.objects.create(post=self.post, kind="image", image="unsafe.png")
                 with patch("django.core.files.storage.FileSystemStorage.url", return_value=value):
                     content = self.client.get("/site/archives/posts/article").content.decode()
-                self.assertFalse(any(tag == "img" for tag, _ in Head(content).nodes))
+                self.assertFalse(any(tag == "img" for tag, _ in self.article_nodes(content)))
                 block.kind = "video"
                 block.video = "unsafe.mp4"
                 block.save()
                 with patch("django.core.files.storage.FileSystemStorage.url", return_value=value):
                     content = self.client.get("/site/archives/posts/article").content.decode()
-                self.assertFalse(any(tag == "video" for tag, _ in Head(content).nodes))
+                self.assertFalse(any(tag == "video" for tag, _ in self.article_nodes(content)))
                 block.delete()
 
     def test_body_keeps_complete_plain_fields_and_ordered_public_media(self):
@@ -320,7 +338,7 @@ class PublicMetadataTests(TestCase):
         self.assertIn("<blockquote><p>Quoted paragraph</p></blockquote>", content)
         self.assertIn("<p>**Literal quote**</p><cite>[Literal attribution]</cite>", content)
         self.assertLess(content.index("## Literal heading"), content.index("Nested heading"))
-        nodes = Head(content).nodes
+        nodes = self.article_nodes(content)
         images = [attrs for tag, attrs in nodes if tag == "img"]
         self.assertEqual([attrs["src"] for attrs in images], [settings.SEO_MEDIA_ORIGIN + self.post.cover_image.url, settings.SEO_MEDIA_ORIGIN + image.image.url])
         self.assertEqual([attrs["alt"] for attrs in images], [self.post.cover_alt, image.alt_text])
@@ -330,15 +348,42 @@ class PublicMetadataTests(TestCase):
         PostBlock.objects.filter(post=self.post, kind="embed").update(video_url="https://vimeo.com/123456")
         self.assertIn(b'href="https://player.vimeo.com/video/123456"', self.client.get("/site/archives/posts/article").content)
 
-    def test_body_is_identical_for_crawlers_and_retains_shell_scripts(self):
+    def test_body_is_identical_for_crawlers_and_does_not_start_the_frontend_router(self):
         PostBlock.objects.create(post=self.post, kind="text", text="Public words and {{ untrusted_template() }}")
         path = "/site/archives/posts/article"
         content = self.client.get(path, HTTP_USER_AGENT="Mozilla/5.0").content
         self.assertEqual(content, self.client.get(path, HTTP_USER_AGENT="Googlebot").content)
-        shell = (Path(settings.SEO_SHELL_DIR) / "archives.html").read_bytes()
-        # Preserve complete script elements, including advertising and Vite's entry.
-        self.assertEqual(re.findall(rb"<script\b.*?</script>", shell, re.S), re.findall(rb"<script\b.*?</script>", content, re.S))
+        nodes = Head(content.decode()).nodes
+        self.assertFalse(any(tag == "script" and attrs.get("type") == "module" for tag, attrs in nodes))
+        self.assertNotIn(b"/assets/", content)
+        self.assertIn(b"ca-pub-5910683856071010", content)
         self.assertIn(b"{{ untrusted_template() }}", content)
+
+    def test_api_article_stylesheet_is_same_origin_versioned_and_packaged(self):
+        _, head = self.parsed("/site/archives/posts/article")
+        styles = [attrs["href"] for tag, attrs in head.nodes if tag == "link" and attrs.get("rel") == "stylesheet"]
+        self.assertEqual(len(styles), 1)
+        self.assertRegex(styles[0], r"^/site/archives/reader\.css\?v=[a-f0-9]{12}$")
+        response = self.client.get(styles[0])
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "text/css; charset=utf-8")
+        self.assertEqual(response["X-Content-Type-Options"], "nosniff")
+        self.assertIn("immutable", response["Cache-Control"])
+        source = Path(settings.BASE_DIR) / "static/seo/archives-reader.css"
+        self.assertEqual(response.content, source.read_bytes())
+        self.assertEqual(self.client.head(styles[0]).status_code, 200)
+        self.assertEqual(self.client.post(styles[0]).status_code, 405)
+        self.assertNotIn("immutable", self.client.get("/site/archives/reader.css?v=old")["Cache-Control"])
+        # Query parameters never select another file or expose application data.
+        self.assertEqual(self.client.get("/site/archives/reader.css?file=../../.env").content, source.read_bytes())
+        self.assertTrue(any(tag == "a" and attrs.get("href") == "https://organicarchives.organicemperor.com/posts/article" for tag, attrs in head.nodes))
+
+    def test_missing_api_reader_stylesheet_fails_closed(self):
+        missing = Path(self.directory.name) / "missing.css"
+        with patch("config.seo.ARCHIVE_READER_CSS", missing):
+            self.assertEqual(self.client.get("/site/archives/posts/article").status_code, 503)
+            self.assertEqual(self.client.get("/site/archives/posts/absent").status_code, 404)
+            self.assertEqual(self.client.get("/site/archives/reader.css").status_code, 404)
 
     def test_sitemap_contains_only_public_canonical_urls_and_valid_dates(self):
         PostBlock.objects.create(post=self.post, kind="text", text="Private body sentinel")

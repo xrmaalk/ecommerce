@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en-CA">
+  <head>
+    <meta charset="UTF-8">
+    {{ head_html|safe }}
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#153f35">
+    <link rel="icon" href="{{ archives_origin }}/favicon.png">
+    <link rel="stylesheet" href="{{ reader_css_url }}">
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5910683856071010" crossorigin="anonymous"></script>
+  </head>
+  <body>
+    <div class="api-archives">
+      <a class="skip-link" href="#main-content">Skip to content</a>
+      <div class="brand-strip">
+        <span>THE OrganicEmperor JOURNAL</span>
+        <a href="https://organicemperor.com/">Visit the store ↗</a>
+      </div>
+      <header class="archive-header">
+        <a class="archive-brand" href="{{ archives_origin }}/">
+          <img src="{{ archives_origin }}/organic-emperor-emblem.png" alt="" width="52" height="52">
+          <span>OrganicArchives</span>
+        </a>
+        <nav aria-label="Main navigation">
+          <a href="{{ archives_origin }}/">The feed</a>
+          <a href="{{ archives_origin }}/reader">Reader sign in</a>
+        </nav>
+      </header>
+      <main id="main-content" tabindex="-1">
+        <a class="back-link" href="{{ archives_origin }}/">← Back to the feed</a>
+        {% if missing %}
+          <div class="feed-state"><h1>This post isn’t available.</h1><p>It may have moved or is no longer published.</p></div>
+        {% else %}
+          <div id="app">{{ body_html|safe }}</div>
+          <p class="reader-end"><a href="{{ canonical }}">Continue on OrganicArchives →</a></p>
+        {% endif %}
+      </main>
+      <footer class="archive-footer">
+        <a href="{{ archives_origin }}/">OrganicArchives</a>
+        <a href="https://organicemperor.com/privacy">Privacy</a>
+        <a href="https://organicemperor.com/">OrganicEmperor.com ↗</a>
+      </footer>
+    </div>
+  </body>
+</html>

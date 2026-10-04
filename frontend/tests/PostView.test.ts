@@ -121,10 +121,21 @@ describe("Archives draft preview", () => {
   })
 
   it("offers login and retry when the admin redirects an expired session", async () => {
-    mocks.getPreview.mockRejectedValue(new TypeError("Fetch redirect blocked"))
+    mocks.getPreview.mockRejectedValue(new ArchiveError(403))
     mount()
     await flush()
     expect(container.textContent).toContain("Sign in through Publisher login")
+    expect(container.textContent).toContain("Try again")
+    expect(container.querySelector("article")).toBeNull()
+  })
+
+  it("does not tell an already signed-in publisher to log in when the request fails", async () => {
+    mocks.getPreview.mockRejectedValue(new TypeError("Failed to fetch"))
+    mount()
+    await flush()
+    expect(container.textContent).toContain("publisher session may still be active")
+    expect(container.textContent).not.toContain("Sign in through Publisher login")
+    expect(container.querySelector(".text-link")).toBeNull()
     expect(container.textContent).toContain("Try again")
     expect(container.querySelector("article")).toBeNull()
   })
