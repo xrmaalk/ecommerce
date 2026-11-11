@@ -87,8 +87,9 @@ onUnmounted(() => controller?.abort())
     <div>
       <p class="eyebrow"><span class="live-dot" /> THE JOURNAL</p>
       <h1>
-        Good things,<br class="mobile-break" />
-        worth knowing<span>.</span>
+        A Safe space,<br class="mobile-break" />
+        for Learners,<br class="mobile-break" />
+        on the net<span>.</span>
       </h1>
       <p>Articles, news, and notes from the world of OrganicEmperor.</p>
     </div>

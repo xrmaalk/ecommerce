@@ -18,3 +18,4 @@ site_shells/
 .env.*
 deployment/*
 .idea/
+docs/
